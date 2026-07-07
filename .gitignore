@@ -39,10 +39,12 @@ __pycache__/
 *.key
 *.p12
 
+# Archive of unused files
+_archive_unused/
+
 # OS files
 .DS_Store
 
 # Editor
 .vscode/
 .idea/
-.env
