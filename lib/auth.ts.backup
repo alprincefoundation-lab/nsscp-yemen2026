@@ -1,0 +1,128 @@
+/**
+ * Authentication utilities for NSSCP Platform
+ * Handles JWT verification, cookie management, and hierarchy auth helpers
+ * All access is isolated by HierarchyEntity (hierarchical multi-tenant)
+ */
+
+import { cookies } from 'next/headers';
+import { verifyToken, type JwtPayload } from './jwt';
+
+export interface AuthenticatedUser {
+    id: string;
+    username: string;
+    role: string;
+    fullName?: string;
+    /** Primary hierarchy entity ID (from HierarchyUser junction) */
+    hierarchyEntityId?: string;
+    hierarchyEntityName?: string;
+    hierarchyEntityType?: string;
+    badgeNumber?: string;
+    rank?: string;
+}
+
+/**
+ * Get the authenticated user from the session cookie
+ * Returns null if not authenticated
+ */
+export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('nsscp_session')?.value;
+
+    if (!token) return null;
+
+    const payload = verifyToken(token);
+    if (!payload) return null;
+
+    return {
+        id: payload.id,
+        username: payload.username,
+        role: payload.role,
+        fullName: payload.fullName,
+        hierarchyEntityId: payload.hierarchyEntityId,
+        hierarchyEntityName: payload.hierarchyEntityName,
+        hierarchyEntityType: payload.hierarchyEntityType,
+        badgeNumber: payload.badgeNumber,
+        rank: payload.rank,
+    };
+}
+
+/**
+ * Require authentication - throws error if not authenticated
+ * Use in API routes that require authentication
+ */
+export async function requireAuth(): Promise<AuthenticatedUser> {
+    const user = await getAuthenticatedUser();
+    if (!user) {
+        throw new Error('غير مصرح بالوصول، يرجى تسجيل الدخول');
+    }
+    return user;
+}
+
+/**
+ * Check if user has required role
+ */
+export function hasRole(user: AuthenticatedUser, allowedRoles: string[]): boolean {
+    return allowedRoles.includes(user.role);
+}
+
+/**
+ * Require specific role - use in API routes
+ */
+export function requireRole(user: AuthenticatedUser, allowedRoles: string[]) {
+    if (!hasRole(user, allowedRoles)) {
+        throw new Error('ليس لديك صلاحية للوصول إلى هذا المورد');
+    }
+}
+
+/**
+ * Check if user has access to a specific hierarchy entity
+ * SUPER_ADMIN can access all entities
+ * Other roles can only access entities within their scope (checked via HierarchyEngine)
+ */
+export function hasHierarchyAccess(user: AuthenticatedUser, targetHierarchyEntityId: string): boolean {
+    if (user.role === 'SUPER_ADMIN') return true;
+    return user.hierarchyEntityId === targetHierarchyEntityId;
+}
+
+/**
+ * Get the data filter for hierarchy isolation
+ * Returns the Prisma where clause filter based on user scope
+ */
+export function getDataFilter(user: AuthenticatedUser): Record<string, any> {
+    if (user.role === 'SUPER_ADMIN') {
+        return {}; // No filter - can see everything
+    }
+    if (user.hierarchyEntityId) {
+        return { hierarchyEntityId: user.hierarchyEntityId };
+    }
+    return {};
+}
+
+/**
+ * Check if a role is higher in hierarchy than another
+ * Returns true if userRole has higher or equal privileges than requiredRole
+ */
+export function isRoleSufficient(userRole: string, requiredRole: string): boolean {
+    const roleHierarchy: Record<string, number> = {
+        SUPER_ADMIN: 1,
+        GOVERNORATE_ADMIN: 2,
+        DEPARTMENT_MANAGER: 3,
+        SECTION_MANAGER: 4,
+        OFFICER: 5,
+        DATA_ENTRY: 6,
+        VIEW_ONLY: 7,
+    };
+
+    const userLevel = roleHierarchy[userRole];
+    const requiredLevel = roleHierarchy[requiredRole];
+
+    if (userLevel === undefined || requiredLevel === undefined) return false;
+    return userLevel <= requiredLevel;
+}
+
+/**
+ * Check if user can manage other users
+ */
+export function canManageUsers(user: AuthenticatedUser): boolean {
+    return ['SUPER_ADMIN', 'GOVERNORATE_ADMIN'].includes(user.role);
+}

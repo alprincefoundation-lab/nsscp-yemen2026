@@ -1,0 +1,135 @@
+/**
+ * Next.js Middleware — NSSCP Platform
+ * 
+ * Handles authentication and authorization for all routes:
+ * - Extracts JWT token from cookies
+ * - Validates token via lib/jwt
+ * - Attaches user info to request headers
+ * - Enforces RBAC route access
+ * - Redirects unauthorized requests
+ */
+
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { verifyToken, type JwtPayload } from './lib/jwt';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// RBAC ROUTE MATRIX
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const RBAC_ROUTES: Record<string, string[]> = {
+  '/dashboard/settings': ['SUPER_ADMIN'],
+  '/api/hierarchy': ['SUPER_ADMIN', 'GOVERNORATE_ADMIN'],
+  '/api/users': ['SUPER_ADMIN', 'GOVERNORATE_ADMIN'],
+  '/api/roles': ['SUPER_ADMIN'],
+  '/api/audit-logs': ['SUPER_ADMIN', 'GOVERNORATE_ADMIN'],
+  '/dashboard/cases': ['SUPER_ADMIN', 'GOVERNORATE_ADMIN', 'DEPARTMENT_MANAGER', 'SECTION_MANAGER', 'OFFICER'],
+  '/dashboard/wanted': ['SUPER_ADMIN', 'GOVERNORATE_ADMIN', 'DEPARTMENT_MANAGER', 'SECTION_MANAGER', 'OFFICER'],
+  '/dashboard/officers': ['SUPER_ADMIN', 'GOVERNORATE_ADMIN', 'DEPARTMENT_MANAGER'],
+  '/dashboard/reports': ['SUPER_ADMIN', 'GOVERNORATE_ADMIN', 'DEPARTMENT_MANAGER', 'SECTION_MANAGER', 'OFFICER'],
+};
+
+const PUBLIC_ROUTES = ['/login', '/api/auth/login', '/api/auth/logout', '/unauthorized'];
+
+/**
+ * Check if user role has access to the requested pathname
+ */
+function hasRouteAccess(role: string, pathname: string): boolean {
+  // SUPER_ADMIN has access to everything
+  if (role === 'SUPER_ADMIN') return true;
+
+  // Public routes are accessible to everyone
+  if (PUBLIC_ROUTES.some(r => pathname === r || pathname.startsWith(r + '/'))) return true;
+
+  // Dashboard root is accessible to authenticated users
+  if (pathname === '/dashboard' || pathname === '/dashboard/') return true;
+
+  // Auth routes are public
+  if (pathname.startsWith('/api/auth/')) return true;
+
+  // Dashboard API routes are accessible to authenticated users
+  if (pathname.startsWith('/api/dashboard/')) return true;
+
+  // Check specific RBAC routes
+  for (const [prefix, roles] of Object.entries(RBAC_ROUTES)) {
+    if (pathname.startsWith(prefix)) {
+      return roles.includes(role);
+    }
+  }
+
+  // Allow unlisted routes by default (fine-grained control via API guards)
+  return true;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MIDDLEWARE FUNCTION
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const token = request.cookies.get('nsscp_session')?.value;
+  const headers = new Headers(request.headers);
+
+  // Skip middleware for static files and Next.js internals
+  if (pathname.startsWith('/_next/') || pathname.startsWith('/favicon') || pathname.includes('.')) {
+    return NextResponse.next({ request: { headers } });
+  }
+
+  // If user has a valid token, verify and attach user info to headers
+  if (token) {
+    const payload = verifyToken(token);
+    
+    if (payload) {
+      // Attach user information to request headers for API routes
+      headers.set('x-hierarchy-user-id', payload.id);
+      headers.set('x-hierarchy-role', payload.role);
+      headers.set('x-hierarchy-username', payload.username);
+      
+      if (payload.hierarchyEntityId) {
+        headers.set('x-hierarchy-entity-id', payload.hierarchyEntityId);
+      }
+      if (payload.hierarchyEntityName) {
+        headers.set('x-hierarchy-entity-name', encodeURIComponent(payload.hierarchyEntityName));
+      }
+      if (payload.hierarchyEntityType) {
+        headers.set('x-hierarchy-entity-type', payload.hierarchyEntityType);
+      }
+      if (payload.fullName) {
+        headers.set('x-hierarchy-fullname', encodeURIComponent(payload.fullName));
+      }
+
+      // Check if user has access to the requested route
+      if (!hasRouteAccess(payload.role, pathname)) {
+        // Block API routes with 403 Forbidden
+        if (pathname.startsWith('/api/')) {
+          return NextResponse.json(
+            { error: 'FORBIDDEN', message: 'ليس لديك صلاحية للوصول إلى هذا المورد' },
+            { status: 403 }
+          );
+        }
+        
+        // Redirect page routes to unauthorized page
+        return NextResponse.redirect(
+          new URL('/unauthorized?from=' + encodeURIComponent(pathname), request.url)
+        );
+      }
+    }
+  } else {
+    // No token - check if route requires authentication
+    if (!PUBLIC_ROUTES.includes(pathname) && pathname.startsWith('/dashboard')) {
+      return NextResponse.redirect(
+        new URL('/login?redirect=' + encodeURIComponent(pathname), request.url)
+      );
+    }
+  }
+
+  return NextResponse.next({ request: { headers } });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MIDDLEWARE CONFIG
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.png|.*\\.jpg).*)'],
+};

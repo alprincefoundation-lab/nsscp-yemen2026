@@ -1,0 +1,494 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AdminUser {
+  id        String   @id
+  username  String   @unique
+  password  String
+  role      String   @default("admin")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
+model AuditLog {
+  id                  String   @id
+  action              String
+  entityType          String
+  entityId            String
+  officerId           String?
+  details             Json?
+  ipAddress           String?
+  userAgent           String?
+  createdAt           DateTime @default(now())
+  hierarchyEntityId   String?
+  hierarchyEntityType String?
+  userId              String?
+  Officer             Officer? @relation(fields: [officerId], references: [id])
+  User                User?    @relation(fields: [userId], references: [id])
+}
+
+model Case {
+  id             String           @id
+  caseNumber     String           @unique
+  title          String
+  description    String?
+  caseType       String
+  status         String           @default("open")
+  priority       String           @default("medium")
+  severity       String           @default("normal")
+  location       String?
+  governorateId  String?
+  districtId     String?
+  reportedDate   DateTime         @default(now())
+  occurrenceDate DateTime?
+  closedDate     DateTime?
+  isClassified   Boolean          @default(false)
+  classification String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime
+  District       District?        @relation(fields: [districtId], references: [id])
+  Governorate    Governorate?     @relation(fields: [governorateId], references: [id])
+  CaseAssignment CaseAssignment[]
+  Evidence       Evidence[]
+  Report         Report[]
+  Vehicle        Vehicle[]
+  Weapon         Weapon[]
+}
+
+model CaseAssignment {
+  id         String   @id
+  caseId     String
+  officerId  String
+  role       String   @default("investigator")
+  assignedAt DateTime @default(now())
+  Case       Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  Officer    Officer  @relation(fields: [officerId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, officerId])
+}
+
+model CentralCommand {
+  id          String     @id
+  name        String
+  code        String     @unique
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime
+  Province    Province[]
+}
+
+model DataRecord {
+  id            String     @id
+  level6UnitId  String
+  recordType    String
+  data          Json
+  status        String     @default("active")
+  securityLevel String     @default("internal")
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime
+  Level6Unit    Level6Unit @relation(fields: [level6UnitId], references: [id])
+}
+
+model Department {
+  id              String        @id
+  name            String
+  code            String        @unique
+  policeStationId String
+  departmentType  String
+  description     String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime
+  PoliceStation   PoliceStation @relation(fields: [policeStationId], references: [id])
+  Officer         Officer[]
+}
+
+model District {
+  id            String          @id
+  name          String
+  code          String          @unique
+  governorateId String
+  areaKm2       Float?
+  population    Int?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  Case          Case[]
+  Governorate   Governorate     @relation(fields: [governorateId], references: [id])
+  Officer       Officer[]
+  PoliceStation PoliceStation[]
+}
+
+model Evidence {
+  id              String   @id
+  evidenceNumber  String   @unique
+  evidenceType    String
+  description     String
+  caseId          String
+  officerId       String?
+  location        String?
+  storageLocation String?
+  status          String   @default("collected")
+  chainOfCustody  Json?
+  collectedAt     DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime
+  Case            Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  Officer         Officer? @relation(fields: [officerId], references: [id])
+}
+
+model Facility {
+  id               Int              @id @default(autoincrement())
+  province         String
+  district         String
+  facilityType     String
+  facilityName     String
+  contactPerson    String?
+  phoneNumber      String?
+  registrationDate DateTime         @default(now())
+  MovementReport   MovementReport[]
+}
+
+model Governorate {
+  id            String          @id
+  name          String
+  code          String          @unique
+  capital       String?
+  region        String?
+  areaKm2       Float?
+  population    Int?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  Case          Case[]
+  District      District[]
+  Officer       Officer[]
+  PoliceStation PoliceStation[]
+}
+
+model Level3Unit {
+  id               String             @id
+  name             String
+  code             String             @unique
+  unitType         String
+  provinceId       String
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime
+  Province         Province           @relation(fields: [provinceId], references: [id])
+  Level4Department Level4Department[]
+}
+
+model Level4Department {
+  id             String          @id
+  name           String
+  code           String          @unique
+  departmentType String
+  level3UnitId   String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime
+  Level3Unit     Level3Unit      @relation(fields: [level3UnitId], references: [id])
+  Level5Section  Level5Section[]
+}
+
+model Level5Section {
+  id                 String           @id
+  name               String
+  code               String           @unique
+  sectionType        String
+  level4DepartmentId String
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime
+  Level4Department   Level4Department @relation(fields: [level4DepartmentId], references: [id])
+  Level6Unit         Level6Unit[]
+}
+
+model Level6Unit {
+  id              String        @id
+  name            String
+  code            String        @unique
+  unitType        String
+  level5SectionId String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime
+  DataRecord      DataRecord[]
+  Level5Section   Level5Section @relation(fields: [level5SectionId], references: [id])
+}
+
+model LevelAssignment {
+  id        String   @id
+  officerId String
+  level     Int
+  unitId    String
+  canView   Boolean  @default(true)
+  canEdit   Boolean  @default(false)
+  canDelete Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  Officer   Officer  @relation(fields: [officerId], references: [id])
+
+  @@unique([officerId, level, unitId])
+}
+
+model MovementReport {
+  id                 Int                  @id @default(autoincrement())
+  facilityId         Int
+  guestName          String
+  guestIdentity      String
+  checkInTime        DateTime             @default(now())
+  roomOrSection      String?
+  recordedBy         String
+  Facility           Facility             @relation(fields: [facilityId], references: [id])
+  SystemNotification SystemNotification[]
+}
+
+model Notification {
+  id        String   @id
+  title     String
+  message   String
+  type      String   @default("info")
+  userId    String?
+  officerId String?
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  @@index([officerId])
+  @@index([userId])
+}
+
+model Officer {
+  id              String            @id
+  rank            String
+  role            String            @default("OFFICER")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime
+  badgeNumber     String            @unique
+  departmentId    String?
+  districtId      String?
+  email           String?
+  fullName        String
+  governorateId   String?
+  isActive        Boolean           @default(true)
+  joinedAt        DateTime          @default(now())
+  phoneNumber     String?
+  policeStationId String?
+  userId          String?           @unique
+  AuditLog        AuditLog[]
+  CaseAssignment  CaseAssignment[]
+  Evidence        Evidence[]
+  LevelAssignment LevelAssignment[]
+  Department      Department?       @relation(fields: [departmentId], references: [id])
+  District        District?         @relation(fields: [districtId], references: [id])
+  Governorate     Governorate?      @relation(fields: [governorateId], references: [id])
+  PoliceStation   PoliceStation?    @relation(fields: [policeStationId], references: [id])
+  User            User?             @relation(fields: [userId], references: [id])
+}
+
+model OperationsReport {
+  id          String   @id
+  title       String
+  description String
+  governorate String
+  attachments Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+}
+
+model Permission {
+  id             String           @id
+  name           String           @unique
+  description    String?
+  createdAt      DateTime         @default(now())
+  RolePermission RolePermission[]
+}
+
+model PoliceStation {
+  id            String       @id
+  name          String
+  code          String       @unique
+  governorateId String
+  districtId    String?
+  address       String?
+  phoneNumber   String?
+  stationType   String       @default("police")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime
+  Department    Department[]
+  Officer       Officer[]
+  District      District?    @relation(fields: [districtId], references: [id])
+  Governorate   Governorate  @relation(fields: [governorateId], references: [id])
+}
+
+model Province {
+  id               String         @id
+  name             String
+  code             String         @unique
+  centralCommandId String
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime
+  Level3Unit       Level3Unit[]
+  CentralCommand   CentralCommand @relation(fields: [centralCommandId], references: [id])
+}
+
+model Report {
+  id          String   @id
+  title       String
+  description String
+  department  String
+  status      String   @default("active")
+  priority    String   @default("medium")
+  createdAt   DateTime @default(now())
+  attachments Json?
+  caseId      String?
+  location    String?
+  officerId   String?
+  reportType  String   @default("incident")
+  updatedAt   DateTime
+  Case        Case?    @relation(fields: [caseId], references: [id])
+}
+
+model Role {
+  id             String           @id
+  name           UserRole         @unique
+  description    String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime
+  RolePermission RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  createdAt    DateTime   @default(now())
+  Permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  Role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model SovereignCircular {
+  id          String   @id
+  title       String
+  content     String
+  priority    String
+  attachments Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+}
+
+model StrategicReport {
+  id        String   @id
+  title     String
+  summary   String
+  period    String
+  documents Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
+model SystemConfig {
+  id         String   @id
+  systemName String
+  status     String
+  configs    Json?
+  documents  Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+}
+
+model SystemNotification {
+  id             Int             @id @default(autoincrement())
+  alertType      String          @default("إشعار أحمر - خطير")
+  wantedId       Int?
+  reportId       Int?
+  detectProvince String
+  detectFacility String
+  targetProvince String
+  isResolved     Boolean         @default(false)
+  alertTime      DateTime        @default(now())
+  MovementReport MovementReport? @relation(fields: [reportId], references: [id])
+  WantedPerson   WantedPerson?   @relation(fields: [wantedId], references: [id])
+}
+
+model User {
+  id          String     @id
+  username    String     @unique
+  password    String
+  email       String?
+  fullName    String?
+  role        UserRole   @default(VIEWER)
+  isActive    Boolean    @default(true)
+  department  String?
+  phoneNumber String?
+  avatar      String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime
+  AuditLog    AuditLog[]
+  Officer     Officer?
+}
+
+model Vehicle {
+  id            String   @id
+  plateNumber   String   @unique
+  chassisNumber String?
+  vehicleType   String
+  brand         String?
+  model         String?
+  color         String?
+  year          Int?
+  ownerName     String?
+  ownerIdNumber String?
+  status        String   @default("active")
+  caseId        String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime
+  Case          Case?    @relation(fields: [caseId], references: [id])
+}
+
+model WantedPerson {
+  id                 Int                  @id @default(autoincrement())
+  fullName           String
+  identityNumber     String?              @unique
+  nationality        String               @default("يمني")
+  chargeDetails      String?
+  issuingProvince    String
+  dangerLevel        String               @default("عالي جداً")
+  status             String               @default("مطلوب حياً")
+  createdAt          DateTime             @default(now())
+  documents          Json?
+  photo              Json?
+  SystemNotification SystemNotification[]
+}
+
+model Weapon {
+  id              String   @id
+  serialNumber    String   @unique
+  weaponType      String
+  caliber         String?
+  manufacturer    String?
+  model           String?
+  countryOfOrigin String?
+  ownerName       String?
+  ownerIdNumber   String?
+  status          String   @default("registered")
+  caseId          String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime
+  Case            Case?    @relation(fields: [caseId], references: [id])
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  MINISTRY_ADMIN
+  GOVERNORATE_ADMIN
+  DISTRICT_ADMIN
+  POLICE_ADMIN
+  OFFICER
+  VIEWER
+}

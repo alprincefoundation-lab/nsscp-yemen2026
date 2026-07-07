@@ -1,0 +1,1057 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ============================================================================
+// CORE ENTITIES
+// ============================================================================
+
+// User Account
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  militaryId    String     @unique
+  nationalId    String     @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  fullName      String
+  rank          String
+  departmentId  String
+  department    Department @relation("UserDepartment", fields: [departmentId], references: [id])
+  isActive      Boolean    @default(true)
+  
+  // Roles and Permissions
+  roles         Role[]     @relation("UserRoles")
+  permissions   Permission[] @relation("UserPermissions")
+  clearanceLevel String?    // TOP_SECRET, SECRET, CONFIDENTIAL, UNCLASSIFIED
+  
+  // Audit Fields
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  createdBy     String?
+  updatedBy     String?
+  deletedAt     DateTime?
+  isDeleted     Boolean    @default(false)
+  version       Int        @default(1)
+  
+  // Relations
+  operationsCommanded Operation[] @relation("OperationCommander")
+  operationsCreated Operation[] @relation("OperationCreated")
+  operationsUpdated Operation[] @relation("OperationUpdated")
+  casesCreated      Case[]      @relation("CaseCreatedBy")
+  casesUpdated      Case[]      @relation("CaseUpdatedBy")
+  casesAssigned     Case[]      @relation("CaseAssignedTo")
+  complaintsFiled   Complaint[] @relation("ComplaintFiledBy")
+  investigationsAssigned Investigation[] @relation("InvestigationAssignedTo")
+  departmentManaged Department[]  @relation("DepartmentManager")
+  formSubmissions   FormSubmission[]
+  formSignatures    FormSignature[]
+  formApprovals     FormApproval[]
+  auditLogs         AuditLog[]
+  
+  @@index([departmentId])
+  @@index([isDeleted])
+  @@index([militaryId])
+}
+
+// Department
+model Department {
+  id                String     @id @default(cuid())
+  code              String     @unique
+  nameAr            String
+  nameEn            String
+  description       String?
+  icon              String?
+  parentDepartmentId String?
+  parentDepartment  Department? @relation("DepartmentChildren", fields: [parentDepartmentId], references: [id])
+  childDepartments  Department[] @relation("DepartmentChildren")
+  
+  managerId         String?
+  manager           User?      @relation("DepartmentManager", fields: [managerId], references: [id])
+  staffCount        Int        @default(0)
+  budget            BigInt     @default(0)
+  
+  // Relations
+  users             User[]      @relation("UserDepartment")
+  formTemplates     FormTemplate[]
+  formSubmissions   FormSubmission[]
+  cases             Case[]
+  operations        Operation[]
+  workflows         WorkflowState[]
+  
+  // Audit Fields
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  createdBy         String?
+  updatedBy         String?
+  deletedAt         DateTime?
+  isDeleted         Boolean    @default(false)
+  version           Int        @default(1)
+  
+  @@index([parentDepartmentId])
+  @@index([isDeleted])
+}
+
+// Role
+model Role {
+  id           String      @id @default(cuid())
+  name         String      @unique
+  description  String?
+  permissions  Permission[]
+  users        User[]      @relation("UserRoles")
+  
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  isDeleted    Boolean     @default(false)
+}
+
+// Permission
+model Permission {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  description  String?
+  resource     String   // e.g., "cases", "users", "operations"
+  action       String   // e.g., "read", "create", "update", "delete"
+  roles        Role[]
+  users        User[]   @relation("UserPermissions")
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@unique([resource, action])
+}
+
+// ============================================================================
+// CASE & INVESTIGATION MANAGEMENT
+// ============================================================================
+
+// Case
+model Case {
+  id              String      @id @default(cuid())
+  caseNumber      String      @unique
+  title           String
+  description     String?
+  type            String      // CRIMINAL, SECURITY, ADMINISTRATIVE
+  status          String      @default("OPEN") // OPEN, UNDER_INVESTIGATION, CLOSED, ARCHIVED
+  severity        String?     // HIGH, MEDIUM, LOW
+  province        String?
+  district        String?
+  location        String?
+  latitude        Float?
+  longitude       Float?
+  
+  // People
+  createdById     String
+  createdBy       User       @relation("CaseCreatedBy", fields: [createdById], references: [id])
+  updatedById     String?
+  updatedBy       User?      @relation("CaseUpdatedBy", fields: [updatedById], references: [id])
+  assignedToId    String?
+  assignedTo      User?      @relation("CaseAssignedTo", fields: [assignedToId], references: [id])
+  
+  departmentId    String
+  department      Department @relation(fields: [departmentId], references: [id])
+  
+  // Relations
+  complaints      Complaint[]
+  investigations  Investigation[]
+  evidence        Evidence[]
+  timeline        CaseTimeline[]
+  documents       Document[]
+  crimeScenes     CrimeScene[]
+  
+  // Audit Fields
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deletedAt       DateTime?
+  isDeleted       Boolean    @default(false)
+  version         Int        @default(1)
+  
+  @@index([caseNumber])
+  @@index([status])
+  @@index([departmentId])
+  @@index([isDeleted])
+}
+
+// Complaint
+model Complaint {
+  id              String   @id @default(cuid())
+  complaintNumber String   @unique
+  complaintType   String   // CRIME_REPORT, MISCONDUCT, SECURITY_THREAT
+  category        String
+  description     String
+  severity        String   @default("MEDIUM")
+  
+  complainantName String
+  complainantPhone String?
+  complainantEmail String?
+  
+  // References
+  caseId          String
+  case            Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  filedById       String
+  filedBy         User     @relation("ComplaintFiledBy", fields: [filedById], references: [id])
+  
+  status          String   @default("NEW") // NEW, VERIFIED, INVESTIGATING, CLOSED
+  attachments     Document[]
+  
+  // Audit Fields
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deletedAt       DateTime?
+  isDeleted       Boolean    @default(false)
+  version         Int        @default(1)
+  
+  @@index([caseId])
+  @@index([status])
+  @@index([isDeleted])
+}
+
+// Investigation
+model Investigation {
+  id                  String    @id @default(cuid())
+  investigationNumber String    @unique
+  caseId              String
+  case                Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  
+  assignedToId        String
+  assignedTo          User      @relation("InvestigationAssignedTo", fields: [assignedToId], references: [id])
+  
+  status              String    @default("OPEN") // OPEN, IN_PROGRESS, CLOSED, ARCHIVED
+  findings            String?
+  
+  // Related entities
+  witnesses           Witness[]
+  suspects            Suspect[]
+  evidence            Evidence[]
+  tasks               Task[]
+  timeline            InvestigationTimeline[]
+  
+  // Audit Fields
+  startDate           DateTime  @default(now())
+  completionDate      DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  deletedAt           DateTime?
+  isDeleted           Boolean   @default(false)
+  version             Int       @default(1)
+  
+  @@index([caseId])
+  @@index([status])
+  @@index([isDeleted])
+}
+
+// Witness
+model Witness {
+  id                String @id @default(cuid())
+  investigationId   String
+  investigation     Investigation @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+  
+  firstName         String
+  lastName          String
+  nationalId        String?
+  phone             String?
+  email             String?
+  address           String?
+  statement         String?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  isDeleted         Boolean  @default(false)
+  
+  @@index([investigationId])
+}
+
+// Suspect
+model Suspect {
+  id                String @id @default(cuid())
+  investigationId   String
+  investigation     Investigation @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+  
+  firstName         String
+  lastName          String
+  nationalId        String?
+  phone             String?
+  address           String?
+  suspicionDetails  String?
+  status            String @default("UNDER_INVESTIGATION")
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  isDeleted         Boolean  @default(false)
+  
+  @@index([investigationId])
+}
+
+// ============================================================================
+// EVIDENCE & FORENSICS
+// ============================================================================
+
+// Evidence
+model Evidence {
+  id                String   @id @default(cuid())
+  evidenceNumber    String   @unique
+  type              String   // PHYSICAL, DIGITAL, DOCUMENT, BIOLOGICAL
+  description       String
+  
+  // Chain of Custody
+  collectedBy       String?
+  collectedAt       DateTime
+  location          String?
+  handler           String?
+  storageLocation   String?
+  
+  // References
+  caseId            String
+  case              Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  investigationId   String?
+  investigation     Investigation? @relation(fields: [investigationId], references: [id], onDelete: SetNull)
+  
+  status            String   @default("COLLECTED") // COLLECTED, ANALYZED, ARCHIVED
+  documents         Document[]
+  forensicAnalysis  ForensicAnalysis[]
+  
+  // Audit Fields
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  deletedAt         DateTime?
+  isDeleted         Boolean    @default(false)
+  version           Int        @default(1)
+  
+  @@index([caseId])
+  @@index([type])
+  @@index([isDeleted])
+}
+
+// Forensic Analysis (Crime Scene, DNA, Fingerprints, etc.)
+model ForensicAnalysis {
+  id                String   @id @default(cuid())
+  analysisNumber    String   @unique
+  type              String   // CRIME_SCENE, FINGERPRINT, DNA, BALLISTICS, CHEMICAL, DOCUMENT, FORGERY
+  
+  evidenceId        String
+  evidence          Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  
+  analyst           String
+  findings          String
+  conclusion        String?
+  reportUrl         String?
+  
+  startDate         DateTime
+  completionDate    DateTime?
+  status            String   @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED
+  
+  // Audit Fields
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  deletedAt         DateTime?
+  isDeleted         Boolean    @default(false)
+  version           Int        @default(1)
+  
+  @@index([evidenceId])
+  @@index([type])
+  @@index([isDeleted])
+}
+
+// Crime Scene Details
+model CrimeScene {
+  id                String   @id @default(cuid())
+  sceneName         String
+  location          String
+  latitude          Float?
+  longitude         Float?
+  description       String?
+  
+  caseId            String
+  case              Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  
+  documentsCollected String?
+  photosAvailable   Boolean  @default(false)
+  videosAvailable   Boolean  @default(false)
+  
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  isDeleted         Boolean    @default(false)
+  
+  @@index([caseId])
+}
+
+// ============================================================================
+// WANTED PERSONS & INTERPOL
+// ============================================================================
+
+// Wanted Person
+model WantedPerson {
+  id                String   @id @default(cuid())
+  wantedNumber      String   @unique
+  firstName         String
+  lastName          String
+  nationalId        String?
+  gender            String?
+  dateOfBirth       DateTime?
+  height            String?
+  physicalDescription String?
+  
+  profilePhoto      String?  // URL to stored image
+  additionalPhotos  Document[]
+  
+  reason            String   // Description of why wanted
+  severity          String   // CRITICAL, HIGH, MEDIUM, LOW
+  domesticStatus    String   @default("ACTIVE") // ACTIVE, CAPTURED, DECEASED, PARDONED
+  internationalNotice String? // RED_NOTICE, BLUE_NOTICE, etc.
+  
+  lastSeenLocation  String?
+  lastSeenDate      DateTime?
+  
+  status            String   @default("ACTIVE")
+  approvedBy        String?
+  approvalDate      DateTime?
+  
+  // Audit Fields
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  deletedAt         DateTime?
+  isDeleted         Boolean    @default(false)
+  version           Int        @default(1)
+  
+  @@index([wantedNumber])
+  @@index([status])
+  @@index([isDeleted])
+}
+
+// ============================================================================
+// OPERATIONS & INCIDENTS
+// ============================================================================
+
+// Operation
+model Operation {
+  id              String   @id @default(cuid())
+  operationNumber String   @unique
+  name            String
+  description     String?
+  type            String   // SECURITY, SEARCH, SURVEILLANCE, RESCUE
+  status          String   @default("PLANNED") // PLANNED, BRIEFING, EXECUTION, DEBRIEF, COMPLETED
+  
+  commanderId     String
+  commander       User     @relation("OperationCommander", fields: [commanderId], references: [id])
+  
+  startDate       DateTime
+  endDate         DateTime?
+  objectives      String?
+  
+  departmentId    String
+  department      Department @relation(fields: [departmentId], references: [id])
+  
+  location        String?
+  province        String?
+  district        String?
+  
+  // Resources
+  unitsInvolved   String[]  // Unit IDs
+  vehiclesUsed    String[]  // Vehicle IDs
+  weaponsUsed     String[]  // Weapon IDs
+  
+  timeline        OperationTimeline[]
+  
+  // Audit Fields
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  createdById     String
+  createdByUser   User      @relation("OperationCreated", fields: [createdById], references: [id])
+  updatedById     String?
+  updatedByUser   User?     @relation("OperationUpdated", fields: [updatedById], references: [id])
+  deletedAt       DateTime?
+  isDeleted       Boolean    @default(false)
+  version         Int        @default(1)
+  
+  @@index([operationNumber])
+  @@index([status])
+  @@index([departmentId])
+  @@index([isDeleted])
+}
+
+// Incident
+model Incident {
+  id              String   @id @default(cuid())
+  incidentNumber  String   @unique
+  type            String   // EMERGENCY, ACCIDENT, CRIME, MEDICAL
+  severity        String   @default("MEDIUM") // CRITICAL, HIGH, MEDIUM, LOW
+  description     String
+  
+  location        String
+  province        String?
+  district        String?
+  latitude        Float?
+  longitude       Float?
+  
+  reportedBy      String?
+  reportedAt      DateTime
+  respondingUnits String[] // Unit IDs
+  
+  status          String   @default("OPEN") // OPEN, RESPONDING, RESOLVED, CLOSED
+  timeline        IncidentTimeline[]
+  
+  // Audit Fields
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deletedAt       DateTime?
+  isDeleted       Boolean    @default(false)
+  version         Int        @default(1)
+  
+  @@index([incidentNumber])
+  @@index([status])
+  @@index([isDeleted])
+}
+
+// ============================================================================
+// ASSETS & INVENTORY
+// ============================================================================
+
+// Vehicle
+model Vehicle {
+  id              String   @id @default(cuid())
+  vehicleId       String   @unique
+  plateNumber     String   @unique
+  type            String   // CAR, TRUCK, MOTORCYCLE, VAN
+  model           String?
+  manufacturer    String?
+  year            Int?
+  vin             String?
+  
+  status          String   @default("AVAILABLE") // AVAILABLE, IN_USE, MAINTENANCE, RETIRED
+  assignedTo      String?  // User ID or Unit ID
+  currentLocation String?
+  latitude        Float?
+  longitude       Float?
+  
+  lastMaintenanceDate DateTime?
+  nextMaintenanceDate DateTime?
+  maintenanceLog  MaintenanceLog[]
+  
+  fuelLevel       Float?
+  mileage         Int?
+  
+  // Audit Fields
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deletedAt       DateTime?
+  isDeleted       Boolean    @default(false)
+  version         Int        @default(1)
+  
+  @@index([vehicleId])
+  @@index([status])
+  @@index([isDeleted])
+}
+
+// Weapon
+model Weapon {
+  id              String   @id @default(cuid())
+  weaponId        String   @unique
+  type            String   // FIREARM, TASER, BATON, etc.
+  model           String?
+  serialNumber    String?  @unique
+  
+  status          String   @default("AVAILABLE") // AVAILABLE, ASSIGNED, MAINTENANCE, RETIRED
+  assignedTo      String?  // User ID
+  assignmentDate  DateTime?
+  
+  lastInspectionDate DateTime?
+  nextInspectionDate DateTime?
+  inspectionLog   InspectionLog[]
+  
+  // Ballistics data
+  ballistics      String?  // JSON or reference to ballistics database
+  
+  // Audit Fields
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deletedAt       DateTime?
+  isDeleted       Boolean    @default(false)
+  version         Int        @default(1)
+  
+  @@index([weaponId])
+  @@index([status])
+  @@index([isDeleted])
+}
+
+// Maintenance Log
+model MaintenanceLog {
+  id              String   @id @default(cuid())
+  vehicleId       String
+  vehicle         Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  
+  type            String   // ROUTINE, REPAIR, INSPECTION
+  description     String
+  performedBy     String
+  performedDate   DateTime @default(now())
+  cost            BigInt?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([vehicleId])
+}
+
+// Inspection Log
+model InspectionLog {
+  id              String   @id @default(cuid())
+  weaponId        String
+  weapon          Weapon   @relation(fields: [weaponId], references: [id], onDelete: Cascade)
+  
+  inspectedBy     String
+  inspectionDate  DateTime
+  result          String   // PASS, FAIL
+  notes           String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([weaponId])
+}
+
+// ============================================================================
+// WORKFLOW & APPROVALS
+// ============================================================================
+
+// Workflow State
+model WorkflowState {
+  id              String   @id @default(cuid())
+  workflowType    String   // COMPLAINT, INVESTIGATION, OPERATION, EVIDENCE
+  stateName       String
+  displayName     String
+  orderSequence   Int
+  
+  departmentId    String?
+  department      Department? @relation(fields: [departmentId], references: [id])
+  
+  transitions     WorkflowTransition[] @relation("FromState")
+  transitionsTo   WorkflowTransition[] @relation("ToState")
+  
+  requiresApproval Boolean @default(false)
+  approvalRole    String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  isDeleted       Boolean  @default(false)
+  
+  @@unique([workflowType, stateName])
+}
+
+// Workflow Transition
+model WorkflowTransition {
+  id              String   @id @default(cuid())
+  fromStateId     String
+  fromState       WorkflowState @relation("FromState", fields: [fromStateId], references: [id])
+  toStateId       String
+  toState         WorkflowState @relation("ToState", fields: [toStateId], references: [id])
+  
+  condition       String?  // JSON condition
+  requiredRole    String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([fromStateId, toStateId])
+}
+
+// ============================================================================
+// WORKFLOW TRANSITION LOGGING & APPROVALS
+// ============================================================================
+
+// Workflow Transition Log
+model WorkflowTransitionLog {
+  id              String   @id @default(cuid())
+  entityId        String
+  workflowType    String   // COMPLAINT, INVESTIGATION, OPERATION, EVIDENCE
+  previousState   String
+  newState        String
+  userId          String
+  userRole        String
+  userDepartment  String
+  reason          String?
+  requiresApproval Boolean @default(false)
+  metadata        Json?
+  timestamp       DateTime @default(now())
+  
+  @@index([entityId])
+  @@index([workflowType])
+  @@index([timestamp])
+}
+
+// Workflow Approval
+model WorkflowApproval {
+  id                      String   @id @default(cuid())
+  workflowTransitionId    String
+  entityId                String
+  requestedBy             String
+  requestedByRole         String
+  requiredRole            String
+  status                  String   @default("PENDING")  // PENDING, APPROVED, REJECTED
+  approvedBy              String?
+  approvalDate            DateTime?
+  rejectionReason         String?
+  reason                  String?
+  createdAt               DateTime @default(now())
+  expiresAt               DateTime
+  
+  @@index([entityId])
+  @@index([status])
+  @@index([requiredRole])
+  @@index([expiresAt])
+}
+
+// Workflow Escalation
+model WorkflowEscalation {
+  id                String   @id @default(cuid())
+  entityId          String
+  workflowType      String
+  currentState      String
+  escalationLevel   Int      @default(1)
+  escalatedTo       String?
+  escalationReason  String?
+  escalationTime    DateTime
+  resolvedTime      DateTime?
+  resolved          Boolean  @default(false)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([entityId])
+  @@index([workflowType])
+  @@index([resolved])
+}
+
+// ============================================================================
+// DOCUMENTS & ATTACHMENTS
+// ============================================================================
+
+// Document/Attachment
+model Document {
+  id              String   @id @default(cuid())
+  filename        String
+  mimetype        String
+  filesize        BigInt
+  url             String
+  s3Key           String?  // For cloud storage
+  
+  documentType    String   // COMPLAINT_FORM, EVIDENCE_PHOTO, REPORT, etc.
+  
+  // References
+  caseId          String?
+  case            Case?    @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  complaintId     String?
+  complaint       Complaint? @relation(fields: [complaintId], references: [id], onDelete: SetNull)
+  evidenceId      String?
+  evidence        Evidence? @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
+  wantedPersonId  String?
+  wantedPerson    WantedPerson? @relation(fields: [wantedPersonId], references: [id], onDelete: SetNull)
+  
+  uploadedBy      String
+  uploadedAt      DateTime @default(now())
+  
+  digitalSignature String? // Base64 or signature ID
+  signedAt        DateTime?
+  signedBy        String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  isDeleted       Boolean  @default(false)
+  
+  @@index([caseId])
+  @@index([complaintId])
+  @@index([evidenceId])
+}
+
+// ============================================================================
+// TIMELINE & HISTORY
+// ============================================================================
+
+// Case Timeline
+model CaseTimeline {
+  id              String   @id @default(cuid())
+  caseId          String
+  case            Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  
+  eventType       String   // CREATED, STATUS_CHANGED, ASSIGNED, UPDATED
+  description     String
+  details         String?  // JSON details
+  
+  createdBy       String
+  createdAt       DateTime @default(now())
+  
+  @@index([caseId])
+  @@index([createdAt])
+}
+
+// Investigation Timeline
+model InvestigationTimeline {
+  id              String   @id @default(cuid())
+  investigationId String
+  investigation   Investigation @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+  
+  eventType       String   // STARTED, EVIDENCE_COLLECTED, WITNESS_INTERVIEWED, etc.
+  description     String
+  details         String?
+  
+  createdBy       String
+  createdAt       DateTime @default(now())
+  
+  @@index([investigationId])
+  @@index([createdAt])
+}
+
+// Operation Timeline
+model OperationTimeline {
+  id              String   @id @default(cuid())
+  operationId     String
+  operation       Operation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  
+  eventType       String   // BRIEFING, DEPLOYED, STATUS_UPDATE, etc.
+  description     String
+  location        String?
+  
+  createdBy       String
+  createdAt       DateTime @default(now())
+  
+  @@index([operationId])
+  @@index([createdAt])
+}
+
+// Incident Timeline
+model IncidentTimeline {
+  id              String   @id @default(cuid())
+  incidentId      String
+  incident        Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  
+  eventType       String   // REPORTED, RESPONDING, RESOLVED, etc.
+  description     String
+  
+  createdBy       String
+  createdAt       DateTime @default(now())
+  
+  @@index([incidentId])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// AUDIT & LOGGING
+// ============================================================================
+
+// Audit Log
+model AuditLog {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userRole        String?
+  
+  action          String   // CREATE, UPDATE, DELETE, READ, WORKFLOW_TRANSITION, WORKFLOW_APPROVAL
+  resourceType    String   // e.g., "Case", "Complaint", "User", "WORKFLOW"
+  resourceId      String
+  
+  oldValue        String?  // JSON
+  newValue        String?  // JSON
+  changes         Json?    // JSON of what changed
+  
+  ipAddress       String?
+  userAgent       String?
+  timestamp       DateTime @default(now())
+  isDeleted       Boolean  @default(false)
+  
+  @@index([userId])
+  @@index([resourceType])
+  @@index([resourceId])
+  @@index([timestamp])
+}
+
+// ============================================================================
+// TASKS & WORKFLOW
+// ============================================================================
+
+// Task
+model Task {
+  id              String   @id @default(cuid())
+  taskNumber      String   @unique
+  title           String
+  description     String?
+  
+  investigationId String?
+  investigation   Investigation? @relation(fields: [investigationId], references: [id], onDelete: SetNull)
+  
+  assignedTo      String?
+  status          String   @default("TODO") // TODO, IN_PROGRESS, COMPLETED
+  priority        String   @default("MEDIUM") // CRITICAL, HIGH, MEDIUM, LOW
+  
+  dueDate         DateTime?
+  completedDate   DateTime?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  isDeleted       Boolean  @default(false)
+  
+  @@index([investigationId])
+  @@index([status])
+  @@index([isDeleted])
+}
+
+// ============================================================================
+// GOVERNMENT FORMS ENGINE
+// ============================================================================
+
+// Form Template
+model FormTemplate {
+  id              String   @id @default(cuid())
+  name            String
+  displayName     String
+  description     String?
+  formType        String   // COMPLAINT, INVESTIGATION, CRIMINAL_RECORD, PRISONER_REGISTRATION, etc.
+  version         Int      @default(1)
+  
+  fields          FormField[]
+  submissions     FormSubmission[]
+  
+  departmentId    String?
+  department      Department? @relation(fields: [departmentId], references: [id])
+  
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([formType])
+  @@index([isActive])
+}
+
+// Form Field Definition
+model FormField {
+  id              String   @id @default(cuid())
+  templateId      String
+  template        FormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  
+  fieldName       String
+  displayLabel    String
+  fieldType       String   // TEXT, NUMBER, EMAIL, DATE, SELECT, CHECKBOX, TEXTAREA, FILE, SIGNATURE
+  required        Boolean  @default(false)
+  order           Int
+  
+  options         String?  // JSON for SELECT field options
+  validation      String?  // JSON validation rules
+  placeholder     String?
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([templateId])
+  @@index([fieldName])
+}
+
+// Form Submission
+model FormSubmission {
+  id              String   @id @default(cuid())
+  templateId      String
+  template        FormTemplate @relation(fields: [templateId], references: [id])
+  
+  submittedBy     String
+  user            User?    @relation(fields: [submittedBy], references: [id], onDelete: SetNull)
+  departmentId    String
+  department      Department @relation(fields: [departmentId], references: [id])
+  
+  formData        Json     // Actual form data
+  status          String   @default("DRAFT") // DRAFT, SUBMITTED, APPROVED, REJECTED, ARCHIVED
+  
+  relatedEntityId String?  // Link to Case, Investigation, Prisoner, etc.
+  relatedEntityType String? // CASE, INVESTIGATION, PRISONER, etc.
+  
+  attachments     FormAttachment[]
+  signatures      FormSignature[]
+  approvals       FormApproval[]
+  
+  submittedAt     DateTime?
+  approvedAt      DateTime?
+  approvedBy      String?
+  rejectionReason String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  isDeleted       Boolean  @default(false)
+  
+  @@index([templateId])
+  @@index([submittedBy])
+  @@index([departmentId])
+  @@index([status])
+  @@index([relatedEntityId])
+}
+
+// Form Attachment
+model FormAttachment {
+  id              String   @id @default(cuid())
+  submissionId    String
+  submission      FormSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  
+  fileName        String
+  fileUrl         String   // Blob storage URL
+  fileSize        BigInt
+  mimeType        String
+  uploadedBy      String
+  uploadedAt      DateTime @default(now())
+  
+  @@index([submissionId])
+}
+
+// Form Signature
+model FormSignature {
+  id              String   @id @default(cuid())
+  submissionId    String
+  submission      FormSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  
+  signedBy        String
+  user            User     @relation(fields: [signedBy], references: [id])
+  signatureData   String   // Base64 or URL to signature image
+  signatureRole   String   // WHO_FILED_COMPLAINT, INVESTIGATOR, APPROVER, etc.
+  signedAt        DateTime
+  
+  @@index([submissionId])
+  @@index([signedBy])
+}
+
+// Form Approval
+model FormApproval {
+  id              String   @id @default(cuid())
+  submissionId    String
+  submission      FormSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  
+  requiredRole    String
+  approvedBy      String?
+  approvingUser   User?    @relation(fields: [approvedBy], references: [id], onDelete: SetNull)
+  
+  status          String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  approvalDate    DateTime?
+  rejectionReason String?
+  comments        String?
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([submissionId])
+  @@index([requiredRole])
+  @@index([status])
+}
+
+// Note: Case model earlier includes crimeScenes relation
+// This complete schema now supports all government requirements including:
+// - User authentication and RBAC
+// - Complete case and complaint management
+// - Investigation tracking with witnesses, suspects, evidence
+// - Forensic analysis and crime scene management
+// - Wanted persons and Interpol operations
+// - Operations and incidents management
+// - Vehicle and weapon inventory
+// - Workflow states and transitions
+// - Document management with digital signatures
+// - Complete audit logging
+// - Timeline tracking for all major entities
+// - Government Forms Engine with templates, submissions, attachments, and approvals

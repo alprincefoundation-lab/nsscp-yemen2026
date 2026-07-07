@@ -1,0 +1,561 @@
+.
+├── app
+│   ├── api
+│   │   ├── airportsecurity
+│   │   │   └── route.ts
+│   │   ├── archive
+│   │   │   ├── cases
+│   │   │   │   └── route.ts
+│   │   │   ├── reports
+│   │   │   │   └── route.ts
+│   │   │   ├── vehicles
+│   │   │   │   └── route.ts
+│   │   │   └── wanted
+│   │   │       └── route.ts
+│   │   ├── audit
+│   │   │   └── route.ts
+│   │   ├── auth
+│   │   │   ├── login
+│   │   │   │   └── route.ts
+│   │   │   ├── logout
+│   │   │   │   └── route.ts
+│   │   │   └── me
+│   │   │       └── route.ts
+│   │   ├── bulletins
+│   │   │   └── route.ts
+│   │   ├── cases
+│   │   │   ├── [id]
+│   │   │   │   ├── route.ts
+│   │   │   │   └── status
+│   │   │   │       └── route.ts
+│   │   │   └── route.ts
+│   │   ├── circulars
+│   │   │   └── route.ts
+│   │   ├── civildefense
+│   │   │   └── route.ts
+│   │   ├── civilregistry
+│   │   │   └── route.ts
+│   │   ├── command-center
+│   │   │   ├── status
+│   │   │   │   └── route.ts
+│   │   │   └── status-v2
+│   │   │       └── route.ts
+│   │   ├── criminalinvestigation
+│   │   │   └── route.ts
+│   │   ├── dashboard
+│   │   │   ├── map-data
+│   │   │   │   └── route.ts
+│   │   │   └── stats
+│   │   │       └── route.ts
+│   │   ├── data-records
+│   │   │   └── route.ts
+│   │   ├── districts
+│   │   │   └── route.ts
+│   │   ├── evidence
+│   │   │   └── route.ts
+│   │   ├── forensic
+│   │   │   └── route.ts
+│   │   ├── gateway
+│   │   │   └── route.ts
+│   │   ├── governorates
+│   │   │   ├── [id]
+│   │   │   │   └── route.ts
+│   │   │   └── route.ts
+│   │   ├── hierarchy
+│   │   │   ├── breadcrumb
+│   │   │   │   └── route.ts
+│   │   │   ├── children
+│   │   │   │   └── route.ts
+│   │   │   ├── level3
+│   │   │   │   └── route.ts
+│   │   │   ├── level4
+│   │   │   │   └── route.ts
+│   │   │   ├── level5
+│   │   │   │   └── route.ts
+│   │   │   ├── level6
+│   │   │   │   └── route.ts
+│   │   │   ├── me
+│   │   │   │   └── route.ts
+│   │   │   ├── parents
+│   │   │   │   └── route.ts
+│   │   │   ├── records
+│   │   │   │   └── route.ts
+│   │   │   ├── route.ts
+│   │   │   ├── scope
+│   │   │   │   └── route.ts
+│   │   │   ├── statistics
+│   │   │   │   └── route.ts
+│   │   │   ├── tree
+│   │   │   │   └── route.ts
+│   │   │   └── users
+│   │   │       └── route.ts
+│   │   ├── map
+│   │   │   └── incidents
+│   │   │       └── route.ts
+│   │   ├── narcotics
+│   │   │   └── route.ts
+│   │   ├── officers
+│   │   │   └── route.ts
+│   │   ├── operations
+│   │   │   └── route.ts
+│   │   ├── operations-reports
+│   │   │   └── route.ts
+│   │   ├── passports
+│   │   │   └── route.ts
+│   │   ├── permissions
+│   │   │   └── route.ts
+│   │   ├── policestations
+│   │   │   └── route.ts
+│   │   ├── prisons
+│   │   │   └── route.ts
+│   │   ├── privatesector
+│   │   │   └── route.ts
+│   │   ├── reports
+│   │   │   └── route.ts
+│   │   ├── role-permissions
+│   │   │   └── route.ts
+│   │   ├── roles
+│   │   │   └── route.ts
+│   │   ├── settings
+│   │   │   └── route.ts
+│   │   ├── stations
+│   │   │   └── route.ts
+│   │   ├── strategic-reports
+│   │   │   └── route.ts
+│   │   ├── system-health
+│   │   │   └── route.ts
+│   │   ├── systems
+│   │   │   └── route.ts
+│   │   ├── systems-config
+│   │   │   └── route.ts
+│   │   ├── tactical-dashboard
+│   │   │   └── route.ts
+│   │   ├── traffic
+│   │   │   └── route.ts
+│   │   ├── upload
+│   │   │   └── route.ts
+│   │   ├── user-permissions
+│   │   │   └── route.ts
+│   │   ├── users
+│   │   │   └── route.ts
+│   │   ├── vehicles
+│   │   │   └── route.ts
+│   │   └── wanted
+│   │       └── route.ts
+│   ├── api-doc
+│   ├── dashboard
+│   │   ├── archive
+│   │   │   └── page.tsx
+│   │   ├── bulletins
+│   │   │   └── page.tsx
+│   │   ├── cases
+│   │   │   ├── components
+│   │   │   │   ├── AssignCaseDialog.tsx
+│   │   │   │   ├── CaseActions.tsx
+│   │   │   │   ├── CaseAttachments.tsx
+│   │   │   │   ├── CaseDetails.tsx
+│   │   │   │   ├── CaseEvidence.tsx
+│   │   │   │   ├── CaseFilters.tsx
+│   │   │   │   ├── CaseHeader.tsx
+│   │   │   │   ├── CaseNotes.tsx
+│   │   │   │   ├── CasePersons.tsx
+│   │   │   │   ├── CaseStatusBadge.tsx
+│   │   │   │   ├── CaseTable.tsx
+│   │   │   │   ├── CaseTimeline.tsx
+│   │   │   │   ├── CaseVehicles.tsx
+│   │   │   │   ├── CreateCaseDialog.tsx
+│   │   │   │   └── EditCaseDialog.tsx
+│   │   │   ├── hooks
+│   │   │   │   ├── useCases.ts
+│   │   │   │   └── useCase.ts
+│   │   │   ├── layout.tsx
+│   │   │   ├── page.tsx
+│   │   │   └── services
+│   │   │       └── cases-api.ts
+│   │   ├── civildefense
+│   │   │   └── page.tsx
+│   │   ├── command-center
+│   │   │   ├── components
+│   │   │   │   ├── ActiveUsersPanel.tsx
+│   │   │   │   ├── AlertsFeed.tsx
+│   │   │   │   ├── AuditStream.tsx
+│   │   │   │   ├── HierarchyNavigator.tsx
+│   │   │   │   ├── LiveMapPanel.tsx
+│   │   │   │   ├── QuickActionsPanel.tsx
+│   │   │   │   ├── SideNavigation.tsx
+│   │   │   │   ├── StatsOverview.tsx
+│   │   │   │   └── TopBar.tsx
+│   │   │   ├── hooks
+│   │   │   │   ├── useActiveUsers.ts
+│   │   │   │   ├── useAuditStream.ts
+│   │   │   │   ├── useHierarchyTree.ts
+│   │   │   │   ├── useLiveAlerts.ts
+│   │   │   │   └── useStatsOverview.ts
+│   │   │   ├── layout.tsx
+│   │   │   ├── page.tsx
+│   │   │   └── services
+│   │   │       └── command-center-api.ts
+│   │   ├── components
+│   │   │   ├── DashboardShell.tsx
+│   │   │   ├── rbac-ui.tsx
+│   │   │   └── skeleton-table.tsx
+│   │   ├── criminalinvestigation
+│   │   │   └── page.tsx
+│   │   ├── departments
+│   │   │   └── page.tsx
+│   │   ├── districts
+│   │   │   └── page.tsx
+│   │   ├── evidence
+│   │   │   └── page.tsx
+│   │   ├── forensic
+│   │   │   └── page.tsx
+│   │   ├── governorates
+│   │   │   └── page.tsx
+│   │   ├── hierarchy
+│   │   │   └── page.tsx
+│   │   ├── layout.tsx
+│   │   ├── narcotics
+│   │   │   └── page.tsx
+│   │   ├── officers
+│   │   │   └── page.tsx
+│   │   ├── operations
+│   │   │   └── page.tsx
+│   │   ├── passports
+│   │   │   └── page.tsx
+│   │   ├── permissions
+│   │   │   └── page.tsx
+│   │   ├── policestations
+│   │   │   └── page.tsx
+│   │   ├── prisons
+│   │   │   └── page.tsx
+│   │   ├── reports
+│   │   │   └── page.tsx
+│   │   ├── roles
+│   │   │   └── page.tsx
+│   │   ├── sections
+│   │   │   └── page.tsx
+│   │   ├── settings
+│   │   │   └── page.tsx
+│   │   ├── soc
+│   │   │   └── logs
+│   │   │       └── page.tsx
+│   │   ├── stations
+│   │   │   └── page.tsx
+│   │   ├── tactical
+│   │   │   └── page.tsx
+│   │   ├── traffic
+│   │   │   └── page.tsx
+│   │   ├── users
+│   │   │   └── page.tsx
+│   │   ├── vehicles
+│   │   │   └── page.tsx
+│   │   └── wanted
+│   │       ├── hooks
+│   │       │   └── useWanted.ts
+│   │       ├── page.tsx
+│   │       └── services
+│   │           └── wanted-api.ts
+│   ├── dashboard-portals
+│   │   └── page.tsx
+│   ├── departments
+│   │   ├── [id]
+│   │   │   └── page.tsx
+│   │   └── page.tsx
+│   ├── globals.css
+│   ├── hierarchy-demo
+│   │   └── page.tsx
+│   ├── layout.tsx
+│   ├── login
+│   ├── organizational-hierarchy
+│   │   └── page.tsx
+│   ├── organizational-hierarchy-advanced
+│   │   └── page.tsx
+│   ├── page.tsx
+│   ├── provinces
+│   │   ├── [id]
+│   │   │   └── page.tsx
+│   │   └── page.tsx
+│   ├── reports
+│   │   ├── daily
+│   │   │   └── page.tsx
+│   │   └── monthly
+│   │       └── page.tsx
+│   ├── settings
+│   │   └── page.tsx
+│   ├── staff-map
+│   │   └── page.tsx
+│   ├── tactical-advanced
+│   │   └── page.tsx
+│   ├── tactical-dashboard
+│   │   └── page.tsx
+│   └── unauthorized
+│       └── page.tsx
+├── build.log
+├── build-test.sh
+├── change-theme.sh
+├── components
+│   ├── DepartmentCard.tsx
+│   ├── DepartmentGrid.tsx
+│   ├── hierarchy
+│   │   ├── AccessControl.tsx
+│   │   ├── DataRecordForm.tsx
+│   │   ├── DataRecordsList.tsx
+│   │   ├── HierarchicalSelector.tsx
+│   │   └── index.ts
+│   ├── InformationDepartment.tsx
+│   ├── ManagerControlPanel.tsx
+│   ├── PermissionsEngine.tsx
+│   ├── PoliceDepartmentInterface.tsx
+│   ├── ReviewersGate.tsx
+│   ├── TacticalDashboard.tsx
+│   ├── theme-provider.tsx
+│   └── ui
+│       ├── accordion.tsx
+│       ├── alert-dialog.tsx
+│       ├── alert.tsx
+│       ├── aspect-ratio.tsx
+│       ├── avatar.tsx
+│       ├── badge.tsx
+│       ├── breadcrumb.tsx
+│       ├── button-group.tsx
+│       ├── button.tsx
+│       ├── calendar.tsx
+│       ├── card.tsx
+│       ├── carousel.tsx
+│       ├── chart.tsx
+│       ├── checkbox.tsx
+│       ├── collapsible.tsx
+│       ├── command.tsx
+│       ├── context-menu.tsx
+│       ├── dialog.tsx
+│       ├── drawer.tsx
+│       ├── dropdown-menu.tsx
+│       ├── empty.tsx
+│       ├── field.tsx
+│       ├── form.tsx
+│       ├── hover-card.tsx
+│       ├── input-group.tsx
+│       ├── input-otp.tsx
+│       ├── input.tsx
+│       ├── item.tsx
+│       ├── kbd.tsx
+│       ├── label.tsx
+│       ├── menubar.tsx
+│       ├── navigation-menu.tsx
+│       ├── pagination.tsx
+│       ├── popover.tsx
+│       ├── progress.tsx
+│       ├── radio-group.tsx
+│       ├── resizable.tsx
+│       ├── scroll-area.tsx
+│       ├── select.tsx
+│       ├── separator.tsx
+│       ├── sheet.tsx
+│       ├── sidebar.tsx
+│       ├── skeleton.tsx
+│       ├── slider.tsx
+│       ├── sonner.tsx
+│       ├── spinner.tsx
+│       ├── switch.tsx
+│       ├── table.tsx
+│       ├── tabs.tsx
+│       ├── textarea.tsx
+│       ├── toaster.tsx
+│       ├── toast.tsx
+│       ├── toggle-group.tsx
+│       ├── toggle.tsx
+│       ├── tooltip.tsx
+│       ├── use-mobile.tsx
+│       └── use-toast.ts
+├── components.json
+├── .continue
+│   └── agents
+│       └── new-config.yaml
+├── create_admin.ts
+├── database
+│   └── triggers_and_relations.sql
+├── dev.log
+├── .env
+├── eslint.config.mjs
+├── .gitignore
+├── gitignore
+├── HIERARCHY_SYSTEM_DOCS.md
+├── hooks
+│   ├── useHierarchy.ts
+│   ├── use-mobile.ts
+│   └── use-toast.ts
+├── index.html
+├── lib
+│   ├── actions
+│   │   └── civil-record.actions.ts
+│   ├── ai
+│   │   ├── anomaly-adaptive-model.ts
+│   │   ├── auto-escalation-engine.ts
+│   │   └── risk-scoring-engine.ts
+│   ├── api-utils
+│   │   ├── auth-helpers.ts
+│   │   ├── error-handler.ts
+│   │   └── rate-limiter.ts
+│   ├── auth
+│   │   ├── auth.types.ts
+│   │   ├── index.ts
+│   │   ├── location-access.ts
+│   │   ├── middleware.ts
+│   │   ├── middleware.ts.bak
+│   │   ├── permission.ts
+│   │   ├── rbac.ts
+│   │   ├── require-auth.ts
+│   │   └── session-manager.ts
+│   ├── auth.ts.backup
+│   ├── command-center
+│   │   └── service.ts
+│   ├── context
+│   │   └── HierarchyProvider.tsx
+│   ├── contexts
+│   │   └── ThemeContext.tsx
+│   ├── contracts
+│   │   └── system-contracts.ts
+│   ├── core
+│   │   ├── audit-engine.ts
+│   │   ├── index.ts
+│   │   ├── rbac-engine.ts
+│   │   └── workflow-engine.ts
+│   ├── data.ts
+│   ├── decision
+│   │   └── autonomous-decision-engine.ts
+│   ├── geo
+│   │   ├── governorate-coordinates.ts
+│   │   └── region-consensus-engine.ts
+│   ├── hierarchy
+│   │   ├── guard.ts
+│   │   ├── index.ts
+│   │   └── types.ts
+│   ├── hierarchy-service.ts
+│   ├── jwt.ts
+│   ├── logging
+│   │   └── audit.ts
+│   ├── middleware
+│   │   ├── index.ts
+│   │   └── security-middleware.ts
+│   ├── performance
+│   │   ├── memoization-strategy.ts
+│   │   ├── render-stability-guard.ts
+│   │   └── state-selector-optimizer.ts
+│   ├── permissions.ts
+│   ├── prisma.ts
+│   ├── realtime
+│   │   ├── anomaly-detector.ts
+│   │   ├── command-engine.ts
+│   │   ├── connection-manager.ts
+│   │   ├── data-purification.ts
+│   │   ├── event-bus.ts
+│   │   ├── event-consistency-layer.ts
+│   │   ├── event-replay-engine.ts
+│   │   ├── event-router.ts
+│   │   ├── event-sovereign-bus.ts
+│   │   ├── event-types.ts
+│   │   ├── offline-sync.ts
+│   │   ├── pipeline
+│   │   │   ├── dispatch-layer.ts
+│   │   │   ├── enrichment-layer.ts
+│   │   │   ├── ingress-pipeline.ts
+│   │   │   ├── normalization-layer.ts
+│   │   │   └── validation-layer.ts
+│   │   └── simulation-engine.ts
+│   ├── resilience
+│   │   ├── fallback-state-manager.ts
+│   │   └── graceful-degradation-engine.ts
+│   ├── schemas
+│   │   └── hierarchy.schema.ts
+│   ├── self-healing
+│   │   ├── auto-repair-engine.ts
+│   │   ├── state-validator.ts
+│   │   └── system-health-monitor.ts
+│   ├── services
+│   │   ├── archive-service.ts
+│   │   ├── auth.service.ts
+│   │   ├── hierarchy.service.ts
+│   │   └── index.ts
+│   ├── session-manager.ts.backup
+│   ├── stores
+│   │   ├── golden-ratio-store.ts
+│   │   └── types.ts
+│   ├── swagger.ts
+│   ├── types
+│   │   ├── forms.ts
+│   │   └── hierarchy.ts
+│   └── utils.ts
+├── main.jsx
+├── middleware.ts.bak
+├── MIGRATION_STATUS.md
+├── next.config.mjs
+├── next-env.d.ts
+├── .npmrc
+├── NSSCP_REPORT.txt
+├── nsscp-secure-key.pem
+├── package.json
+├── package-lock.json
+├── postcss.config.mjs
+├── prisma
+│   ├── migrations
+│   │   ├── 20260623134559_init_rbac_system
+│   │   │   └── migration.sql
+│   │   ├── 20260624020311_fakri
+│   │   │   └── migration.sql
+│   │   └── migration_lock.toml
+│   ├── schema.before_full_rbac.prisma
+│   ├── schema.before_location.prisma
+│   ├── schema.before_rbac_2026-06-23_1522.prisma
+│   ├── schema.before_rbac.prisma
+│   ├── schema_before_rbac.prisma
+│   ├── schema.prisma
+│   ├── schema.safe.prisma
+│   └── seed.ts
+├── PROJECT_TREE.txt
+├── public
+│   ├── apple-icon.png
+│   ├── .gitkeep
+│   ├── icon-dark-32x32.png
+│   ├── icon-light-32x32.png
+│   ├── icon.svg
+│   ├── index.html
+│   ├── __manus__
+│   │   ├── debug-collector.js
+│   │   └── version.json
+│   ├── placeholder.jpg
+│   ├── placeholder-logo.png
+│   ├── placeholder-logo.svg
+│   ├── placeholder.svg
+│   └── placeholder-user.jpg
+├── reset-password.ts
+├── restore-frontend.js
+├── scripts
+│   └── create-super-admin.js
+├── server
+│   ├── controllers
+│   │   └── base-controller.ts
+│   ├── dto
+│   │   └── dto-validator.ts
+│   ├── repositories
+│   │   └── base-repository.ts
+│   ├── services
+│   │   └── base-service.ts
+│   └── usecases
+│       └── base-usecase.ts
+├── server.js
+├── structure.txt
+├── styles
+│   └── globals.css
+├── tsc.log
+├── tsconfig.json
+├── tsconfig.tsbuildinfo
+├── types
+│   ├── api.ts
+│   ├── auth.ts
+│   └── user.ts
+└── .vscode
+    ├── extensions.json
+    ├── mcp.json
+    └── settings.json
+
+181 directories, 378 files
