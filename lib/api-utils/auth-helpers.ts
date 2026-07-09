@@ -1,4 +1,4 @@
-import { requireAuth } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth/index';
 import { hasPermission, Permission } from '@/lib/permissions';
 
 export async function authorizeAction(requiredPermission: Permission) {

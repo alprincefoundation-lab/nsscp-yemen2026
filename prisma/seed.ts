@@ -1,4 +1,4 @@
-import { PrismaClient, HierarchyType, FieldType } from '@prisma/client';
+import { PrismaClient, HierarchyType } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -329,7 +329,7 @@ async function main() {
 
         console.log(`   ✅ Reclassified: ${reclassifiedCount} entities`);
         console.log(`   ✅ Deleted: ${deletedCount} entities\n`);
-        
+
         summary.updated += reclassifiedCount;
         summary.deleted += deletedCount;
 
@@ -354,7 +354,7 @@ async function main() {
                 },
             });
             createdRoles[roleData.name] = role.id;
-            
+
             if (existing) {
                 summary.updated++;
                 console.log(`   🔄 Role: ${role.name} (updated)`);
@@ -377,18 +377,20 @@ async function main() {
                 where: { name: permData.name },
                 update: {
                     description: permData.description,
-                    module: permData.module,
+                    resource: permData.module,
                     action: permData.action,
+                    module: permData.module,
                 },
                 create: {
                     name: permData.name,
                     description: permData.description,
+                    resource: permData.module,
                     module: permData.module,
                     action: permData.action,
                 },
             });
             createdPermissions[permData.name] = perm.id;
-            
+
             if (existing) {
                 summary.updated++;
             } else {
@@ -778,60 +780,60 @@ async function main() {
 
         const hashedPassword = await bcrypt.hash('Admin@123456', 12);
 
+        // Create or ensure a Department record exists to satisfy User.departmentId relation
+        const ministryDepartment = await prisma.department.upsert({
+            where: { code: 'MOI-DEPT-MAIN' },
+            update: {
+                nameAr: 'وزارة الداخلية',
+                nameEn: 'Ministry of Interior',
+                description: 'Ministry root department',
+            },
+            create: {
+                code: 'MOI-DEPT-MAIN',
+                nameAr: 'وزارة الداخلية',
+                nameEn: 'Ministry of Interior',
+                description: 'Ministry root department',
+            },
+        });
+
         const superAdminUser = await prisma.user.upsert({
-            where: { username: 'super_admin' },
+            where: { email: 'superadmin@moi.gov.ye' },
             update: {
                 fullName: 'مدير النظام - وزارة الداخلية',
                 isActive: true,
-                password: hashedPassword,
-                role: 'SUPER_ADMIN',
+                passwordHash: hashedPassword,
+                firstName: 'مدير',
+                lastName: 'النظام',
+                militaryId: 'MOI-00001',
+                nationalId: 'NSSCP-SUPERADMIN-1',
+                departmentId: ministryDepartment.id,
+                roles: { connect: { id: createdRoles['SUPER_ADMIN'] } },
             },
             create: {
-                username: 'super_admin',
-                password: hashedPassword,
-                fullName: 'مدير النظام - وزارة الداخلية',
-                role: 'SUPER_ADMIN',
-                militaryNumber: 'MOI-00001',
-                rank: 'لواء',
-                position: 'مدير النظام',
-                province: 'أمانة العاصمة',
-                department: 'وزارة الداخلية',
                 email: 'superadmin@moi.gov.ye',
+                passwordHash: hashedPassword,
+                fullName: 'مدير النظام - وزارة الداخلية',
+                firstName: 'مدير',
+                lastName: 'النظام',
+                militaryId: 'MOI-00001',
+                nationalId: 'NSSCP-SUPERADMIN-1',
+                rank: 'لواء',
+                departmentId: ministryDepartment.id,
                 phoneNumber: '01-1111111',
                 isActive: true,
+                roles: { connect: { id: createdRoles['SUPER_ADMIN'] } },
             },
         });
 
         console.log(`   ✅ SUPER_ADMIN user created:`);
-        console.log(`      Username:     ${superAdminUser.username}`);
-        console.log(`      Full Name:    ${superAdminUser.fullName}`);
-        console.log(`      Password:     Admin@123456`);
-        console.log(`      Email:        ${superAdminUser.email}`);
-        console.log(`      Military No.: ${superAdminUser.militaryNumber}\n`);
+        console.log(`      Email:         ${superAdminUser.email}`);
+        console.log(`      Full Name:     ${superAdminUser.fullName}`);
+        console.log(`      Password:      Admin@123456`);
+        console.log(`      Military Id:   ${superAdminUser.militaryId}\n`);
 
-        // --------------------------------------------------
-        // STEP 14: Assign SUPER_ADMIN role and all permissions to user
-        // --------------------------------------------------
-        console.log('📌 STEP 14: Assigning Permissions to SUPER_ADMIN User');
-
-        for (const permData of PERMISSIONS) {
-            await prisma.userPermission.upsert({
-                where: {
-                    userId_permissionId: {
-                        userId: superAdminUser.id,
-                        permissionId: createdPermissions[permData.name],
-                    },
-                },
-                update: { granted: true, roleId: createdRoles['SUPER_ADMIN'] },
-                create: {
-                    userId: superAdminUser.id,
-                    permissionId: createdPermissions[permData.name],
-                    granted: true,
-                    roleId: createdRoles['SUPER_ADMIN'],
-                },
-            });
-        }
-        console.log(`   ✅ All permissions assigned to SUPER_ADMIN user\n`);
+        // Permissions are assigned to the SUPER_ADMIN role (Step 3). Users inherit permissions
+        // through their Roles (Role → RolePermission → Permission). No direct UserPermission entries.
+        console.log('   ✅ SUPER_ADMIN user created and linked to SUPER_ADMIN role\n');
 
         // --------------------------------------------------
         // STEP 15: Assign SUPER_ADMIN user to Ministry hierarchy

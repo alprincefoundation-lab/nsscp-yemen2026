@@ -1,0 +1,214 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AuditLog {
+  id                 String            @id @default(cuid())
+  action             String
+  entityType         String
+  entityId           String
+  officerId          String?
+  details            Json?
+  ipAddress          String?
+  userAgent          String?
+  createdAt          DateTime          @default(now())
+  centralCommandId   String?
+  provinceId         String?
+  level3UnitId       String?
+  level4DepartmentId String?
+  level5SectionId    String?
+  level6UnitId       String?
+  dataRecordId       String?
+  CentralCommand     CentralCommand?   @relation(fields: [centralCommandId], references: [id], onDelete: Cascade)
+  DataRecord         DataRecord?       @relation(fields: [dataRecordId], references: [id], onDelete: Cascade)
+  Level3Unit         Level3Unit?       @relation(fields: [level3UnitId], references: [id], onDelete: Cascade)
+  Level4Department   Level4Department? @relation(fields: [level4DepartmentId], references: [id], onDelete: Cascade)
+  Level5Section      Level5Section?    @relation(fields: [level5SectionId], references: [id], onDelete: Cascade)
+  Level6Unit         Level6Unit?       @relation(fields: [level6UnitId], references: [id], onDelete: Cascade)
+  Officer            Officer?          @relation(fields: [officerId], references: [id])
+  Province           Province?         @relation(fields: [provinceId], references: [id], onDelete: Cascade)
+}
+
+model WantedPerson {
+  id                 Int                  @id @default(autoincrement())
+  fullName           String
+  identityNumber     String?              @unique
+  nationality        String               @default("┘è┘à┘┘è")
+  chargeDetails      String?
+  issuingProvince    String
+  dangerLevel        String               @default("╪╣╪د┘┘è ╪ش╪»╪د┘ï")
+  status             String               @default("┘à╪╖┘┘ê╪ذ ╪ص┘è╪د┘ï")
+  createdAt          DateTime             @default(now())
+  SystemNotification SystemNotification[]
+}
+
+model CentralCommand {
+  id          String     @id
+  name        String
+  code        String     @unique
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime
+  AuditLog    AuditLog[]
+  Province    Province[]
+}
+
+model DataRecord {
+  id            String     @id
+  level6UnitId  String
+  recordType    String
+  data          Json
+  status        String     @default("active")
+  securityLevel String     @default("internal")
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime
+  AuditLog      AuditLog[]
+  Level6Unit    Level6Unit @relation(fields: [level6UnitId], references: [id])
+}
+
+model Facility {
+  id               Int              @id @default(autoincrement())
+  province         String
+  district         String
+  facilityType     String
+  facilityName     String
+  contactPerson    String?
+  phoneNumber      String?
+  registrationDate DateTime         @default(now())
+  MovementReport   MovementReport[]
+}
+
+model Level3Unit {
+  id               String             @id
+  name             String
+  code             String             @unique
+  unitType         String
+  provinceId       String
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime
+  AuditLog         AuditLog[]
+  Province         Province           @relation(fields: [provinceId], references: [id])
+  Level4Department Level4Department[]
+}
+
+model Level4Department {
+  id             String          @id
+  name           String
+  code           String          @unique
+  departmentType String
+  level3UnitId   String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime
+  AuditLog       AuditLog[]
+  Level3Unit     Level3Unit      @relation(fields: [level3UnitId], references: [id])
+  Level5Section  Level5Section[]
+}
+
+model Level5Section {
+  id                 String           @id
+  name               String
+  code               String           @unique
+  sectionType        String
+  level4DepartmentId String
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime
+  AuditLog           AuditLog[]
+  Level4Department   Level4Department @relation(fields: [level4DepartmentId], references: [id])
+  Level6Unit         Level6Unit[]
+}
+
+model Level6Unit {
+  id              String        @id
+  name            String
+  code            String        @unique
+  unitType        String
+  level5SectionId String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime
+  AuditLog        AuditLog[]
+  DataRecord      DataRecord[]
+  Level5Section   Level5Section @relation(fields: [level5SectionId], references: [id])
+}
+
+model LevelAssignment {
+  id        String   @id
+  officerId String
+  level     Int
+  unitId    String
+  canView   Boolean  @default(true)
+  canEdit   Boolean  @default(false)
+  canDelete Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  Officer   Officer  @relation(fields: [officerId], references: [id])
+
+  @@unique([officerId, level, unitId])
+}
+
+model MovementReport {
+  id                 Int                  @id @default(autoincrement())
+  facilityId         Int
+  guestName          String
+  guestIdentity      String
+  checkInTime        DateTime             @default(now())
+  roomOrSection      String?
+  recordedBy         String
+  Facility           Facility             @relation(fields: [facilityId], references: [id])
+  SystemNotification SystemNotification[]
+}
+
+model Officer {
+  id              String            @id
+  name            String
+  rank            String
+  role            String
+  department      String
+  accessLevel     Int               @default(1)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime
+  AuditLog        AuditLog[]
+  LevelAssignment LevelAssignment[]
+}
+
+model Province {
+  id               String         @id
+  name             String
+  code             String         @unique
+  centralCommandId String
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime
+  AuditLog         AuditLog[]
+  Level3Unit       Level3Unit[]
+  CentralCommand   CentralCommand @relation(fields: [centralCommandId], references: [id])
+}
+
+model Report {
+  id          String   @id
+  title       String
+  description String
+  department  String
+  status      String   @default("active")
+  priority    String
+  createdAt   DateTime @default(now())
+}
+
+model SystemNotification {
+  id             Int             @id @default(autoincrement())
+  alertType      String          @default("╪ح╪┤╪╣╪د╪▒ ╪ث╪ص┘à╪▒ - ╪«╪╖┘è╪▒")
+  wantedId       Int?
+  reportId       Int?
+  detectProvince String
+  detectFacility String
+  targetProvince String
+  isResolved     Boolean         @default(false)
+  alertTime      DateTime        @default(now())
+  MovementReport MovementReport? @relation(fields: [reportId], references: [id])
+  WantedPerson   WantedPerson?   @relation(fields: [wantedId], references: [id])
+}
+
+

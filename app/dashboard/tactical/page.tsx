@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import CallPanel from "@/components/tactical-ui/call-panel";
 import DepartmentsGrid from "@/components/tactical-ui/departments-grid";
-import Header, { Breadcrumb } from "@/components/tactical-ui/header";
+import Header from "@/components/tactical-ui/header";
+import type { Breadcrumb } from "@/components/tactical-ui/breadcrumb";
 import LiveMap from "@/components/live-map";
 import MainNav from "@/components/tactical-ui/main-nav";
 import MetricsDashboard from "@/components/tactical-ui/metrics-dashboard";

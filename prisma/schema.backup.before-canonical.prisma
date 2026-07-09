@@ -1,0 +1,220 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum HierarchyType {
+  MINISTRY
+  GOVERNORATE
+  DEPARTMENT
+  SECTION
+  UNIT
+}
+
+// ============================================================================
+// CORE ENTITIES
+// ============================================================================
+
+// User Account
+model User {
+  hierarchyUsers HierarchyUser[] @relation("UserHierarchyUsers")
+  id             String          @id @default(cuid())
+  email          String          @unique
+  militaryId     String          @unique
+  nationalId     String          @unique
+  passwordHash   String
+  firstName      String
+  lastName       String
+  fullName       String
+  rank           String
+  departmentId   String
+  department     Department      @relation("UserDepartment", fields: [departmentId], references: [id])
+  isActive       Boolean         @default(true)
+
+  // Roles and Permissions
+  roles          Role[]       @relation("UserRoles")
+  permissions    Permission[] @relation("UserPermissions")
+  clearanceLevel String? // TOP_SECRET, SECRET, CONFIDENTIAL, UNCLASSIFIED
+
+  // Audit Fields
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+  isDeleted Boolean   @default(false)
+  version   Int       @default(1)
+
+  // Relations
+  operationsCommanded    Operation[]      @relation("OperationCommander")
+  operationsCreated      Operation[]      @relation("OperationCreated")
+  operationsUpdated      Operation[]      @relation("OperationUpdated")
+  casesCreated           Case[]           @relation("CaseCreatedBy")
+  casesUpdated           Case[]           @relation("CaseUpdatedBy")
+  casesAssigned          Case[]           @relation("CaseAssignedTo")
+  complaintsFiled        Complaint[]      @relation("ComplaintFiledBy")
+  investigationsAssigned Investigation[]  @relation("InvestigationAssignedTo")
+  departmentManaged      Department[]     @relation("DepartmentManager")
+  formSubmissions        FormSubmission[]
+  formSignatures         FormSignature[]
+  formApprovals          FormApproval[]
+  auditLogs              AuditLog[]
+
+  @@index([departmentId])
+  @@index([isDeleted])
+  @@index([militaryId])
+}
+
+// Department
+model Department {
+  id                 String       @id @default(cuid())
+  code               String       @unique
+  nameAr             String
+  nameEn             String
+  description        String?
+  icon               String?
+  parentDepartmentId String?
+  parentDepartment   Department?  @relation("DepartmentChildren", fields: [parentDepartmentId], references: [id])
+  childDepartments   Department[] @relation("DepartmentChildren")
+
+  managerId  String?
+  manager    User?   @relation("DepartmentManager", fields: [managerId], references: [id])
+  staffCount Int     @default(0)
+  budget     BigInt  @default(0)
+
+  // Relations
+  users           User[]           @relation("UserDepartment")
+  formTemplates   FormTemplate[]
+  formSubmissions FormSubmission[]
+  cases           Case[]
+  operations      Operation[]
+  workflows       WorkflowState[]
+
+  // Audit Fields
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  createdBy String?
+  updatedBy String?
+  deletedAt DateTime?
+  isDeleted Boolean   @default(false)
+  version   Int       @default(1)
+
+  @@index([parentDepartmentId])
+  @@index([isDeleted])
+}
+
+// Role
+model Role {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  description String?
+  permissions Permission[]
+  users       User[]       @relation("UserRoles")
+
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  isDeleted      Boolean          @default(false)
+  RolePermission RolePermission[]
+}
+
+// Permission
+model Permission {
+  id              String           @id @default(cuid())
+  name            String           @unique
+  description     String?
+  resource        String // e.g., "cases", "users", "operations"
+  action          String // e.g., "read", "create", "update", "delete"
+  module          String?
+  roles           Role[]
+  users           User[]           @relation("UserPermissions")
+  rolePermissions RolePermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([resource, action])
+}
+
+// Role Permission (junction table)
+model RolePermission {
+  id           String   @id @default(cuid())
+  roleId       String
+  permissionId String
+  granted      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([roleId, permissionId])
+}
+
+// Hierarchy Entity (for organizational structure)
+model HierarchyEntity {
+  id   String        @id @default(cuid())
+  code String        @unique
+  name String
+  type HierarchyType
+
+  parentId String?
+  parent   HierarchyEntity?  @relation("HierarchyChildren", fields: [parentId], references: [id])
+  children HierarchyEntity[] @relation("HierarchyChildren")
+
+  hierarchyUsers HierarchyUser[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Hierarchy User (user hierarchy assignments)
+model HierarchyUser {
+  id                String  @id @default(cuid())
+  userId            String
+  hierarchyEntityId String
+  isPrimary         Boolean @default(false)
+  role              String? // User's role within this hierarchy entity
+
+  user            User            @relation("UserHierarchyUsers", fields: [userId], references: [id])
+  hierarchyEntity HierarchyEntity @relation(fields: [hierarchyEntityId], references: [id])
+
+  @@unique([userId, hierarchyEntityId])
+}
+
+// Dynamic Form (Government Forms)
+model DynamicForm {
+  id   String @id @default(cuid())
+  code String @unique
+  name String
+
+  hierarchyEntityId String?
+
+  schema Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  records DynamicRecord[]
+}
+
+// Dynamic Record (Form Submissions)
+model DynamicRecord {
+  id     String @id @default(cuid())
+  formId String
+  data   Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  form DynamicForm @relation(fields: [formId], references: [id])
+}

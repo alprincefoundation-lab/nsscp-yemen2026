@@ -18,7 +18,7 @@
 import { NextResponse } from 'next/server';
 import { HierarchyEngine } from './index';
 import type { ScopeFilter } from './types';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth/index';
 import type { AuthenticatedUser } from '@/lib/auth/auth.types';
 import { createRBACContext, resolvePermission, type Action, type Resource } from '@/lib/auth/rbac';
 import { createAuditLog, extractRequestMeta } from '@/lib/core/audit-engine';
@@ -79,12 +79,12 @@ export async function apiGuard(
       };
     }
 
-    // Create hierarchy engine with unified input
-    const engine = new HierarchyEngine({
-      id: user.id,
-      role: user.roles[0]?.name || 'USER',
-      departmentId: user.departmentId,
-    });
+  // Create hierarchy engine with unified input
+  const engine = new HierarchyEngine({
+    id: user.id,
+    role: user.role,
+    hierarchyNodeId: user.hierarchyEntityId,
+  });
 
     // Get scope filter
     const scope = await engine.getScope();

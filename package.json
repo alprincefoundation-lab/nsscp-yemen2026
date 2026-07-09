@@ -46,7 +46,11 @@
     "postcss": "^8.5",
     "prisma": "^5.8.0",
     "tailwindcss": "^4.2.0",
+    "ts-node": "^10.9.2",
     "typescript": "5.7.3"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
   },
   "pnpm": {
     "overrides": {

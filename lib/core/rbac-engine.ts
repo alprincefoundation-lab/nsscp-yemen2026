@@ -6,7 +6,8 @@
 import { prisma } from '@/lib/prisma';
 import { createAuditLog, extractRequestMeta, type AuditEntryInput } from './audit-engine';
 import { Role, Permission, ROLE_LEVELS, hasPermission, getDataScope } from '@/lib/permissions';
-import type { HierarchyType } from '@prisma/client';
+// Local type definition for HierarchyType (used before Prisma generation)
+type HierarchyType = 'MINISTRY' | 'GOVERNORATE' | 'DEPARTMENT' | 'SECTION' | 'UNIT';
 
 // ============================================
 // Types

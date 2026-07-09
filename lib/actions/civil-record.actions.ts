@@ -9,7 +9,7 @@
 
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth } from "@/lib/auth/index";
 import { createAuditLog } from "@/lib/core/audit-engine";
 import { requirePermission } from "@/lib/core/rbac-engine";
 import { Permission } from "@/lib/permissions";
@@ -53,15 +53,15 @@ export async function createCivilRecord(data: CivilRecordInput) {
 
   // Duplicate ID check
   if (parsed.idNumber) {
-    const existing = await (prisma as any).civilRecord.findFirst({
+    const existing = await prisma.civilRecord.findFirst({
       where: { idNumber: parsed.idNumber },
     });
     if (existing) throw new Error("رقم الهوية موجود مسبقاً في النظام");
   }
 
-  const record = await (prisma as any).civilRecord.create({
+  const record = await prisma.civilRecord.create({
     data: {
-      recordType: parsed.recordType as any,
+      recordType: parsed.recordType,
       fullName: parsed.fullName,
       dateOfBirth: parsed.dateOfBirth ? new Date(parsed.dateOfBirth) : null,
       gender: parsed.gender ?? null,
