@@ -1,5 +1,6 @@
-import { workflowRepository } from '@/lib/repositories/workflow.repository'
+import { createAuditLog } from '@/lib/core/audit-engine'
 import { prisma } from '@/lib/prisma'
+import { workflowRepository } from '@/lib/repositories/workflow.repository'
 
 export class ApprovalEngine {
   async requestApproval(
@@ -7,7 +8,7 @@ export class ApprovalEngine {
     entityId: string,
     requestedBy: string,
     requestedByRole: string,
-    requiredRoles: string[]
+    requiredRoles: string[],
   ) {
     const approvals = []
 
@@ -33,33 +34,27 @@ export class ApprovalEngine {
 
   async approve(approvalId: string, approvedBy: string, comments?: string) {
     const approval = await workflowRepository.approveWorkflow(approvalId, approvedBy)
-    
-    if (comments) {
-      await prisma.auditLog.create({
-        data: {
-          userId: approvedBy,
-          action: 'WORKFLOW_APPROVAL',
-          resourceType: 'WorkflowApproval',
-          resourceId: approvalId,
-          changes: { comments },
-        },
-      })
-    }
+
+    await createAuditLog({
+      action: 'APPROVE',
+      entityType: 'WORKFLOW_APPROVAL',
+      entityId: approvalId,
+      userId: approvedBy,
+      details: comments ? { comments } : null,
+    })
 
     return approval
   }
 
   async reject(approvalId: string, approvedBy: string, reason: string) {
     const approval = await workflowRepository.rejectWorkflow(approvalId, approvedBy, reason)
-    
-    await prisma.auditLog.create({
-      data: {
-        userId: approvedBy,
-        action: 'WORKFLOW_REJECTION',
-        resourceType: 'WorkflowApproval',
-        resourceId: approvalId,
-        changes: { rejectionReason: reason },
-      },
+
+    await createAuditLog({
+      action: 'REJECT',
+      entityType: 'WORKFLOW_APPROVAL',
+      entityId: approvalId,
+      userId: approvedBy,
+      details: { rejectionReason: reason },
     })
 
     return approval
@@ -76,15 +71,6 @@ export class ApprovalEngine {
   }
 
   async getApprovalStats(role: string, days = 30) {
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
-    const approvals = await prisma.workflowApproval.findMany({
-      where: { requiredRole: role, createdAt: { gte: since } },
-    })
-
-    const pending = approvals.filter(a => a.status === 'PENDING').length
-    const approved = approvals.filter(a => a.status === 'APPROVED').length
-    const rejected = approvals.filter(a => a.status === 'REJECTED').length
-
-    return { pending, approved, rejected, total: approvals.length }
+    return workflowRepository.getApprovalStats(role, days)
   }
 }

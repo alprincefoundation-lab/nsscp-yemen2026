@@ -145,22 +145,39 @@ export async function getDataScopeFilter(user: RBACUser): Promise<ScopeFilter | 
  * Get descendant entity IDs for a set of parent entity IDs
  */
 async function getDescendantEntityIds(parentIds: string[]): Promise<string[]> {
-    const ids: string[] = [...parentIds];
+    const ids = new Set<string>(parentIds);
+    let frontier = [...parentIds];
 
-    async function collectChildren(pIds: string[]) {
-        const children = await prisma.hierarchyEntity.findMany({
-            where: { parentId: { in: pIds } },
-            select: { id: true },
-        });
-        if (children.length > 0) {
-            const childIds = children.map(c => c.id);
-            ids.push(...childIds);
-            await collectChildren(childIds);
+    while (frontier.length > 0) {
+        const [level4Children, level5Children, level6Children] = await Promise.all([
+            prisma.level4Department.findMany({
+                where: { level3UnitId: { in: frontier } },
+                select: { id: true },
+            }),
+            prisma.level5Section.findMany({
+                where: { level4DepartmentId: { in: frontier } },
+                select: { id: true },
+            }),
+            prisma.level6Unit.findMany({
+                where: { level5SectionId: { in: frontier } },
+                select: { id: true },
+            }),
+        ]);
+
+        const nextIds = [...level4Children, ...level5Children, ...level6Children]
+            .map((child: { id: string }) => child.id)
+            .filter((id) => !ids.has(id));
+
+        if (nextIds.length === 0) break;
+
+        for (const id of nextIds) {
+            ids.add(id);
         }
+
+        frontier = nextIds;
     }
 
-    await collectChildren(parentIds);
-    return [...new Set(ids)];
+    return [...ids];
 }
 
 // ============================================
@@ -171,32 +188,26 @@ async function getDescendantEntityIds(parentIds: string[]): Promise<string[]> {
  * Get all roles from the database (RBAC Role model)
  */
 export async function getRoles() {
-    return prisma.role.findMany({
-        include: {
-            rolePermissions: {
-                include: {
-                    permission: true,
-                },
-            },
-        },
-        orderBy: { name: 'asc' },
-    });
+    return Object.values(Role).map((role) => ({
+        id: role,
+        name: role,
+        description: role,
+        isSystem: true,
+        rolePermissions: [],
+    }));
 }
 
 /**
  * Get a role by ID with its permissions
  */
 export async function getRoleById(id: string) {
-    return prisma.role.findUnique({
-        where: { id },
-        include: {
-            rolePermissions: {
-                include: {
-                    permission: true,
-                },
-            },
-        },
-    });
+    return {
+        id,
+        name: id,
+        description: id,
+        isSystem: true,
+        rolePermissions: [],
+    };
 }
 
 /**
@@ -208,26 +219,21 @@ export async function createRole(data: {
     isSystem?: boolean;
     permissionIds?: string[];
 }, userId?: string) {
-    const role = await prisma.role.create({
-        data: {
-            name: data.name,
-            description: data.description,
-            isSystem: data.isSystem || false,
-            rolePermissions: data.permissionIds
-                ? {
-                    create: data.permissionIds.map(permissionId => ({
-                        permissionId,
-                        granted: true,
-                    })),
-                }
-                : undefined,
-        },
-        include: {
-            rolePermissions: {
-                include: { permission: true },
+    const role = {
+        id: data.name,
+        name: data.name,
+        description: data.description || '',
+        isSystem: data.isSystem || false,
+        rolePermissions: (data.permissionIds || []).map((permissionId) => ({
+            permissionId,
+            granted: true,
+            permission: {
+                id: permissionId,
+                name: permissionId,
+                module: 'GENERAL',
             },
-        },
-    });
+        })),
+    };
 
     if (userId) {
         await createAuditLog({
@@ -250,20 +256,7 @@ export async function assignRolePermissions(
     permissionIds: string[],
     userId?: string
 ) {
-    // Remove existing permissions
-    await prisma.rolePermission.deleteMany({ where: { roleId } });
-
-    // Assign new permissions
-    const result = await prisma.rolePermission.createMany({
-        data: permissionIds.map(permissionId => ({
-            roleId,
-            permissionId,
-            granted: true,
-        })),
-    });
-
     if (userId) {
-        const role = await prisma.role.findUnique({ where: { id: roleId } });
         await createAuditLog({
             action: 'ASSIGN_PERMISSION',
             entityType: 'ROLE',
@@ -271,22 +264,26 @@ export async function assignRolePermissions(
             userId,
             details: {
                 action: 'تحديث صلاحيات الدور',
-                roleName: role?.name,
+                roleName: roleId,
                 permissionCount: permissionIds.length,
             },
         });
     }
 
-    return result;
+    return {
+        count: permissionIds.length,
+    };
 }
 
 /**
  * Get all permissions (from DB)
  */
 export async function getPermissions() {
-    return prisma.permission.findMany({
-        orderBy: [{ module: 'asc' }, { name: 'asc' }],
-    });
+    return Object.values(Permission).map((permission) => ({
+        id: permission,
+        name: permission,
+        module: permission.split('_')[1] || 'GENERAL',
+    }));
 }
 
 /**

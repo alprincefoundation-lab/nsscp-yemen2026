@@ -1,50 +1,47 @@
-import { workflowRepository } from '@/lib/repositories/workflow.repository'
 import { prisma } from '@/lib/prisma'
+import { workflowRepository } from '@/lib/repositories/workflow.repository'
 import { EscalationEngine } from './escalation-engine'
 
 export class SLAEngine {
   private escalationEngine = new EscalationEngine()
 
   async checkViolations(workflowType: string) {
-    const states = await workflowRepository.getWorkflowStates(workflowType)
+    const rules = await workflowRepository.getSlaRules(workflowType)
+    const logs = await prisma.workflowTransitionLog.findMany({
+      where: { workflowType },
+      orderBy: { timestamp: 'desc' },
+    })
+    const activeEscalations = await workflowRepository.getActiveEscalations(workflowType)
     const violations = []
 
-    for (const state of states) {
-      const logs = await prisma.workflowTransitionLog.findMany({
-        where: { workflowType, newState: state.stateName },
-        orderBy: { timestamp: 'desc' },
-      })
-
+    for (const rule of rules) {
       for (const log of logs) {
-        // Find transition for SLA info
-        const transitions = await workflowRepository.getTransitions(state.id)
-        
-        for (const transition of transitions) {
-          if (transition.sla) {
-            const hoursSince = (Date.now() - log.timestamp.getTime()) / (1000 * 60 * 60)
-            
-            if (hoursSince > transition.sla) {
-              // Check if escalation already created
-              const existing = await prisma.workflowEscalation.findFirst({
-                where: {
-                  entityId: log.entityId,
-                  workflowType,
-                  resolved: false,
-                  escalationReason: { contains: 'SLA' },
-                },
-              })
-
-              if (!existing) {
-                const escalation = await this.escalationEngine.escalateOnSLAViolation(
-                  log.entityId,
-                  workflowType,
-                  state.stateName
-                )
-                violations.push(escalation)
-              }
-            }
-          }
+        if (log.previousState !== rule.fromState || log.newState !== rule.toState) {
+          continue
         }
+
+        const hoursSince = (Date.now() - log.timestamp.getTime()) / (1000 * 60 * 60)
+        if (hoursSince <= rule.slaHours) {
+          continue
+        }
+
+        const existing = activeEscalations.find(
+          (item) =>
+            item.entityId === log.entityId &&
+            item.currentState === log.newState &&
+            item.escalationReason?.includes('SLA'),
+        )
+
+        if (existing) {
+          continue
+        }
+
+        const escalation = await this.escalationEngine.escalateOnSLAViolation(
+          log.entityId,
+          workflowType,
+          log.newState,
+        )
+        violations.push(escalation)
       }
     }
 
@@ -67,12 +64,21 @@ export class SLAEngine {
       averageProcessingTimeHours: logs.length > 1
         ? (logs[logs.length - 1].timestamp.getTime() - logs[0].timestamp.getTime()) / (logs.length * 60 * 60 * 1000)
         : 0,
+      days,
     }
   }
 
   async setSLA(workflowType: string, fromState: string, toState: string, slaHours: number) {
-    // Implementation depends on how transitions are fetched
-    // This would update the transition with SLA value
+    await workflowRepository.upsertSlaRule({
+      id: `${workflowType}:${fromState}:${toState}`,
+      workflowType,
+      fromState,
+      toState,
+      slaHours,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+
     return { status: 'SLA_SET', slaHours }
   }
 }

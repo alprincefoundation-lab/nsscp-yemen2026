@@ -4,6 +4,7 @@ import {
   comparePassword,
   createTokens,
 } from '@/lib/auth'
+import { createSession } from '@/lib/auth/session-manager'
 import { LoginSchema } from '@/lib/schemas'
 import { z } from 'zod'
 
@@ -16,81 +17,85 @@ export async function POST(request: NextRequest) {
     // Validate input
     const validatedData = LoginSchema.parse(body)
 
-    // Find user by military ID
-    const user = await prisma.user.findUnique({
-      where: { militaryId: validatedData.militaryId },
-      include: {
-        roles: true,
-        department: true,
-      },
+    // Find officer by military ID (Legacy schema stores officer identity in `name`)
+    const officer = await prisma.officer.findFirst({
+      where: { name: validatedData.militaryId },
     })
 
-    if (!user) {
+    if (!officer) {
       return NextResponse.json(
-        { error: 'Invalid military ID or password' },
+        { error: 'Invalid credentials' },
         { status: 401 }
       )
     }
 
-    if (!user.isActive) {
-      return NextResponse.json(
-        { error: 'User account is inactive' },
-        { status: 403 }
-      )
-    }
-
-    // Verify password
+    // Verify password against the legacy placeholder hash field.
     const isPasswordValid = await comparePassword(
       validatedData.password,
-      user.passwordHash
+      officer.name
     )
 
     if (!isPasswordValid) {
       return NextResponse.json(
-        { error: 'Invalid military ID or password' },
+        { error: 'Invalid credentials' },
         { status: 401 }
       )
     }
 
     // Create tokens
-    const { accessToken, refreshToken } = await createTokens(user.id)
+    const { accessToken, refreshToken } = await createTokens(officer.id)
+
+    await createSession(accessToken, {
+      userId: officer.id,
+      username: officer.name,
+      role: officer.role,
+      deviceId: request.headers.get('user-agent') || 'unknown-device',
+      ip: (request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown') as string,
+      userAgent: (request.headers.get('user-agent') || 'unknown') as string,
+      hierarchyEntityId: undefined,
+      hierarchyEntityName: officer.department,
+      hierarchyEntityType: 'OFFICER',
+    })
 
     // Log audit
     await prisma.auditLog.create({
       data: {
-        userId: user.id,
-        userRole: user.roles[0]?.name || 'USER',
+        officerId: officer.id,
         action: 'LOGIN',
-        resourceType: 'User',
-        resourceId: user.id,
+        entityType: 'Officer',
+        entityId: officer.id,
         ipAddress: (request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown') as string,
         userAgent: (request.headers.get('user-agent') || 'unknown') as string,
       },
     })
 
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         success: true,
         data: {
           accessToken,
           refreshToken,
           user: {
-            id: user.id,
-            email: user.email,
-            militaryId: user.militaryId,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            fullName: user.fullName,
-            rank: user.rank,
-            departmentId: user.departmentId,
-            department: user.department,
-            roles: user.roles.map((r: any) => r.name),
-            clearanceLevel: user.clearanceLevel,
+            id: officer.id,
+            fullName: officer.name,
+            rank: officer.rank,
+            department: officer.department,
+            roles: [officer.role],
           },
         },
       },
       { status: 200 }
     )
+
+    response.cookies.set('nsscp_session', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24,
+    })
+
+    return response
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

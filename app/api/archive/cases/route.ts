@@ -1,7 +1,10 @@
-import { NextResponse } from 'next/server';
-export async function GET() {
-  return NextResponse.json({ status: "placeholder", message: "NSSCP Archive System Component Active" });
+import { NextRequest } from 'next/server';
+import { handleArchiveGet, handleArchivePost } from '@/lib/api/archive-api';
+
+export async function GET(request: NextRequest) {
+  return handleArchiveGet(request, 'cases');
 }
-export async function POST() {
-  return NextResponse.json({ status: "placeholder" });
+
+export async function POST(request: NextRequest) {
+  return handleArchivePost(request, 'cases');
 }

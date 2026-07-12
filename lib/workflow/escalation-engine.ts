@@ -1,5 +1,5 @@
 import { workflowRepository } from '@/lib/repositories/workflow.repository'
-import { prisma } from '@/lib/prisma'
+import { createAuditLog } from '@/lib/core/audit-engine'
 
 export class EscalationEngine {
   async escalate(
@@ -50,13 +50,12 @@ export class EscalationEngine {
   async resolveEscalation(escalationId: string) {
     const escalation = await workflowRepository.resolveEscalation(escalationId)
 
-    await prisma.auditLog.create({
-      data: {
-        userId: 'SYSTEM',
-        action: 'WORKFLOW_ESCALATION_RESOLVED',
-        resourceType: 'WorkflowEscalation',
-        resourceId: escalationId,
-      },
+    await createAuditLog({
+      action: 'WORKFLOW_ESCALATION_RESOLVED',
+      entityType: 'PRISON',
+      entityId: escalationId,
+      userId: 'SYSTEM',
+      details: { resolved: true },
     })
 
     return escalation
@@ -64,17 +63,20 @@ export class EscalationEngine {
 
   async escalationStats(workflowType: string) {
     const escalations = await workflowRepository.getActiveEscalations(workflowType)
-    const byLevel = escalations.reduce((acc: any, e: any) => {
-      acc[e.escalationLevel] = (acc[e.escalationLevel] || 0) + 1
-      return acc
-    }, {})
+    const byLevel: Record<number, number> = {}
+    for (const escalation of escalations) {
+      byLevel[escalation.escalationLevel] = (byLevel[escalation.escalationLevel] || 0) + 1
+    }
+
+    const average =
+      escalations.length > 0
+        ? escalations.reduce((sum, escalation) => sum + escalation.escalationLevel, 0) / escalations.length
+        : 0
 
     return {
       total: escalations.length,
       byLevel,
-      average: escalations.length > 0
-        ? escalations.reduce((sum: number, e: any) => sum + e.escalationLevel, 0) / escalations.length
-        : 0,
+      average,
     }
   }
 }

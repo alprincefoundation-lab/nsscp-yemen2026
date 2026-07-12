@@ -2,18 +2,15 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { wantedPersonsService } from '@/lib/services/wanted-persons.service'
-import { verifyAccessToken } from '@/lib/auth'
+import { getAuthenticatedUser } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const decoded = verifyAccessToken(token)
-    if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+    const decoded = await getAuthenticatedUser(request)
+    if (!decoded) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await request.json()
-    const person = await wantedPersonsService.createWantedPerson(body, decoded.id, decoded.departmentId)
+    const person = await wantedPersonsService.createWantedPerson(body, decoded.id)
 
     return NextResponse.json(person, { status: 201 })
   } catch (error: any) {
@@ -23,11 +20,8 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const decoded = verifyAccessToken(token)
-    if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+    const decoded = await getAuthenticatedUser(request)
+    if (!decoded) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const searchParams = request.nextUrl.searchParams
     const query = searchParams.get('query')
@@ -43,7 +37,7 @@ export async function GET(request: NextRequest) {
 
     const result = await wantedPersonsService.listWantedPersons({
       status: status || undefined,
-      severity: severity || undefined,
+      dangerLevel: severity || undefined,
       skip,
       take,
     })

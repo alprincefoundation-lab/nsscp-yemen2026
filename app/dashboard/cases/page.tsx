@@ -106,8 +106,7 @@ export default function CasesPage() {
   }, []);
 
   const handleGenerateReport = useCallback(() => {
-    // Placeholder for report generation
-    alert('سيتم تفعيل إنشاء التقارير قريباً');
+    window.print();
   }, []);
 
   return (

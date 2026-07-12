@@ -1,22 +1,23 @@
 import { wantedPersonRepository } from '@/lib/repositories/wanted-persons.repository'
-import { prisma } from '@/lib/prisma'
 import { logAudit } from '@/lib/audit'
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
 export const CreateWantedPersonSchema = z.object({
-  firstName: z.string().min(2),
-  lastName: z.string().min(2),
-  nationalId: z.string().optional(),
-  gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
-  dateOfBirth: z.date().optional(),
-  height: z.string().optional(),
-  physicalDescription: z.string().optional(),
-  profilePhoto: z.string().optional(),
-  reason: z.string().min(10),
-  severity: z.enum(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']),
-  domesticStatus: z.enum(['ACTIVE', 'CAPTURED', 'DECEASED', 'PARDONED']).default('ACTIVE'),
-  lastSeenLocation: z.string().optional(),
-  lastSeenDate: z.date().optional(),
+  fullName: z.string().min(2).optional(),
+  firstName: z.string().min(2).optional(),
+  lastName: z.string().min(2).optional(),
+  identityNumber: z.string().min(1).optional(),
+  nationalId: z.string().min(1).optional(),
+  nationality: z.string().min(2).optional(),
+  chargeDetails: z.string().min(3).optional(),
+  charges: z.string().min(3).optional(),
+  reason: z.string().min(3).optional(),
+  issuingProvince: z.string().min(1).optional(),
+  province: z.string().min(1).optional(),
+  dangerLevel: z.string().min(1).optional(),
+  severity: z.string().min(1).optional(),
+  status: z.string().min(1).optional(),
 })
 
 export const UpdateWantedPersonSchema = CreateWantedPersonSchema.partial()
@@ -24,25 +25,34 @@ export const UpdateWantedPersonSchema = CreateWantedPersonSchema.partial()
 export class WantedPersonsService {
   async createWantedPerson(
     data: z.infer<typeof CreateWantedPersonSchema>,
-    userId: string,
-    departmentId: string
+    userId: string
   ) {
     const validated = CreateWantedPersonSchema.parse(data)
-    
-    const wantedNumber = await this.generateWantedNumber()
-    
+
+    const fullName = this.resolveFullName(validated)
+    const chargeDetails =
+      validated.chargeDetails ?? validated.charges ?? validated.reason
+    const nationality = validated.nationality ?? 'يمني'
+    const issuingProvince = validated.issuingProvince ?? validated.province ?? 'غير محددة'
+    const dangerLevel = validated.dangerLevel ?? validated.severity ?? 'عالي'
+    const identityNumber = validated.identityNumber ?? validated.nationalId
+    const status = validated.status ?? 'مطلوب حياً'
+
     const person = await wantedPersonRepository.create({
-      ...validated,
-      wantedNumber,
-      status: 'ACTIVE',
+      fullName,
+      identityNumber,
+      nationality,
+      chargeDetails,
+      issuingProvince,
+      dangerLevel,
+      status,
     })
 
     await logAudit({
-      userId,
-      userRole: 'SYSTEM',
       action: 'CREATE',
-      resourceType: 'WantedPerson',
-      resourceId: person.id,
+      officerId: userId,
+      entityType: 'WantedPerson',
+      entityId: String(person.id),
       changes: person,
     })
 
@@ -53,14 +63,18 @@ export class WantedPersonsService {
     return wantedPersonRepository.findById(id)
   }
 
+  async getWantedPersonDetails(id: string) {
+    return wantedPersonRepository.findById(id)
+  }
+
   async searchWantedPersons(query: string) {
     return wantedPersonRepository.search(query)
   }
 
   async listWantedPersons(filters?: {
     status?: string
-    severity?: string
-    domesticStatus?: string
+    dangerLevel?: string
+    query?: string
     skip?: number
     take?: number
   }) {
@@ -76,16 +90,16 @@ export class WantedPersonsService {
     if (!person) throw new Error('Wanted person not found')
 
     const validated = UpdateWantedPersonSchema.parse(data)
-    
-    const updated = await wantedPersonRepository.update(id, validated)
+
+    const updateData = this.normalizeUpdate(validated) as Prisma.WantedPersonUpdateInput
+    const updated = await wantedPersonRepository.update(id, updateData)
 
     await logAudit({
-      userId,
-      userRole: 'SYSTEM',
       action: 'UPDATE',
-      resourceType: 'WantedPerson',
-      resourceId: id,
-      changes: validated,
+      officerId: userId,
+      entityType: 'WantedPerson',
+      entityId: id,
+      changes: updateData,
     })
 
     return updated
@@ -95,36 +109,17 @@ export class WantedPersonsService {
     const person = await wantedPersonRepository.findById(id)
     if (!person) throw new Error('Wanted person not found')
 
-    const updated = await wantedPersonRepository.update(id, {
-      domesticStatus: 'CAPTURED',
-      lastSeenLocation: location,
-      lastSeenDate: new Date(),
-      status: 'INACTIVE',
-    })
-
-    // Create case for captured person
-    const case_ = await prisma.case.create({
-      data: {
-        caseNumber: `CAPTURE-${Date.now()}`,
-        title: `Capture: ${person.firstName} ${person.lastName}`,
-        description: `Wanted person captured at ${location}`,
-        status: 'OPEN',
-        caseType: 'WANTED_PERSON_CAPTURE',
-        createdById: userId,
-        createdByUser: { connect: { id: userId } },
-      },
-    })
+    const updated = await wantedPersonRepository.updateStatus(id, 'مقبوض عليه')
 
     await logAudit({
-      userId,
-      userRole: 'SYSTEM',
       action: 'CAPTURE',
-      resourceType: 'WantedPerson',
-      resourceId: id,
-      changes: { captured: true, location, caseId: case_.id },
+      officerId: userId,
+      entityType: 'WantedPerson',
+      entityId: id,
+      changes: { captured: true, location },
     })
 
-    return { person: updated, case: case_ }
+    return { person: updated, location }
   }
 
   async issueInternationalNotice(id: string, noticeType: string, userId: string) {
@@ -134,12 +129,11 @@ export class WantedPersonsService {
     const updated = await wantedPersonRepository.issueInternationalNotice(id, noticeType)
 
     await logAudit({
-      userId,
-      userRole: 'SYSTEM',
       action: 'ISSUE_NOTICE',
-      resourceType: 'WantedPerson',
-      resourceId: id,
-      changes: { internationalNotice: noticeType },
+      officerId: userId,
+      entityType: 'WantedPerson',
+      entityId: id,
+      changes: { noticeType },
     })
 
     return updated
@@ -153,10 +147,48 @@ export class WantedPersonsService {
     return wantedPersonRepository.findBySeverity('CRITICAL')
   }
 
-  private async generateWantedNumber(): Promise<string> {
-    const timestamp = Date.now().toString().slice(-8)
-    const random = Math.random().toString(36).substring(2, 7).toUpperCase()
-    return `WP-${timestamp}-${random}`
+  private resolveFullName(data: z.infer<typeof CreateWantedPersonSchema>): string {
+    if (data.fullName?.trim()) {
+      return data.fullName.trim()
+    }
+
+    const firstName = data.firstName?.trim() ?? ''
+    const lastName = data.lastName?.trim() ?? ''
+    const combined = `${firstName} ${lastName}`.trim()
+    if (combined) {
+      return combined
+    }
+
+    throw new Error('Full name is required')
+  }
+
+  private normalizeUpdate(data: z.infer<typeof UpdateWantedPersonSchema>) {
+    const update: Record<string, unknown> = {}
+
+    const fullName = data.fullName?.trim()
+    if (fullName) {
+      update.fullName = fullName
+    } else if (data.firstName || data.lastName) {
+      update.fullName = this.resolveFullName(data as z.infer<typeof CreateWantedPersonSchema>)
+    }
+
+    const identityNumber = data.identityNumber ?? data.nationalId
+    if (identityNumber !== undefined) update.identityNumber = identityNumber
+
+    if (data.nationality !== undefined) update.nationality = data.nationality
+
+    const chargeDetails = data.chargeDetails ?? data.charges ?? data.reason
+    if (chargeDetails !== undefined) update.chargeDetails = chargeDetails
+
+    const issuingProvince = data.issuingProvince ?? data.province
+    if (issuingProvince !== undefined) update.issuingProvince = issuingProvince
+
+    const dangerLevel = data.dangerLevel ?? data.severity
+    if (dangerLevel !== undefined) update.dangerLevel = dangerLevel
+
+    if (data.status !== undefined) update.status = data.status
+
+    return update
   }
 }
 

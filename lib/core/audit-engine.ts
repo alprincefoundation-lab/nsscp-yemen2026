@@ -83,13 +83,10 @@ export async function createAuditLog(input: AuditEntryInput) {
             action: input.action,
             entityType: input.entityType,
             entityId: input.entityId,
-            userId: input.userId || null,
-            officerId: input.officerId || null,
+            officerId: input.officerId || input.userId || null,
             details: (details || null) as any,
             ipAddress: input.ipAddress || null,
             userAgent: input.userAgent || null,
-            hierarchyEntityId: input.hierarchyEntityId || null,
-            hierarchyEntityType: input.hierarchyEntityType || null,
         },
     });
 }
@@ -112,7 +109,7 @@ export async function getAuditLogs(params: {
 
     if (params.entityType) where.entityType = params.entityType;
     if (params.entityId) where.entityId = params.entityId;
-    if (params.userId) where.userId = params.userId;
+    if (params.userId) where.officerId = params.userId;
     if (params.action) where.action = params.action;
     if (params.hierarchyEntityId) where.hierarchyEntityId = params.hierarchyEntityId;
     if (params.fromDate || params.toDate) {
@@ -125,19 +122,33 @@ export async function getAuditLogs(params: {
     const pageSize = params.pageSize || 50;
     const skip = (page - 1) * pageSize;
 
-    const [data, total] = await Promise.all([
+    const [logs, total] = await Promise.all([
         prisma.auditLog.findMany({
             where: where as any,
             orderBy: { createdAt: 'desc' },
             skip,
             take: pageSize,
             include: {
-                user: { select: { id: true, username: true, fullName: true } },
-                officer: { select: { id: true, fullName: true, badgeNumber: true } },
+                Officer: { select: { id: true, name: true, rank: true, role: true, department: true } },
             },
         }),
         prisma.auditLog.count({ where: where as any }),
     ]);
+
+    const data = logs.map((log) => ({
+        ...log,
+        user: log.Officer
+            ? {
+                id: log.Officer.id,
+                username: log.Officer.name,
+                fullName: log.Officer.name,
+                badgeNumber: log.Officer.id,
+                rank: log.Officer.rank,
+                role: log.Officer.role,
+                department: log.Officer.department,
+            }
+            : null,
+    }));
 
     return {
         data,

@@ -1,9 +1,80 @@
+import { Prisma } from '@prisma/client'
+import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/prisma'
-import { Investigation, Suspect, Witness } from '@prisma/client'
+import { createAuditLog } from '@/lib/core/audit-engine'
 
-// ============================================================================
-// INVESTIGATION OPERATIONS
-// ============================================================================
+type OfficerRef = {
+  id: string
+  fullName?: string | null
+  email?: string | null
+  rank?: string | null
+  department?: string | null
+}
+
+function now(): Date {
+  return new Date()
+}
+
+function createId(prefix: string): string {
+  return `${prefix}_${randomUUID()}`
+}
+
+async function getOfficerRef(id: string): Promise<OfficerRef | null> {
+  const officer = await prisma.officer.findUnique({
+    where: { id },
+    select: { id: true, name: true, rank: true, department: true },
+  })
+
+  return officer
+    ? {
+        id: officer.id,
+        fullName: officer.name,
+        rank: officer.rank,
+        department: officer.department,
+      }
+    : null
+}
+
+async function getSuspectInterrogations(suspectId: string) {
+  return prisma.interrogation.findMany({
+    where: { suspectId },
+    orderBy: { date: 'desc' },
+  })
+}
+
+async function buildInvestigationView(record: Prisma.InvestigationGetPayload<{}>) {
+  return {
+    ...record,
+    assignee: { id: record.assignedTo, fullName: record.assignedTo },
+    case: { id: record.caseId },
+  }
+}
+
+async function buildSuspectView(record: Prisma.SuspectGetPayload<{}>) {
+  return {
+    ...record,
+    investigation: { id: record.investigationId },
+  }
+}
+
+async function buildWitnessView(record: Prisma.WitnessGetPayload<{}>) {
+  return {
+    ...record,
+    investigation: { id: record.investigationId },
+  }
+}
+
+async function buildInterrogationView(record: Prisma.InterrogationGetPayload<{}>) {
+  const suspect = await prisma.suspect.findUnique({
+    where: { id: record.suspectId },
+  })
+
+  return {
+    ...record,
+    suspect: suspect ? await buildSuspectView(suspect) : null,
+    interrogator: { id: record.interrogatorId, fullName: record.interrogatorId },
+  }
+}
 
 export async function createInvestigation(data: {
   caseId: string
@@ -13,90 +84,81 @@ export async function createInvestigation(data: {
   description?: string
   departmentId?: string
 }) {
-  const investigation = await prisma.investigation.create({
-    data: {
-      caseId: data.caseId,
-      assignedTo: data.assignedTo,
-      type: data.type,
-      priority: data.priority || 'MEDIUM',
-      description: data.description,
-      departmentId: data.departmentId,
-      status: 'ACTIVE',
-    },
-    include: {
-      assignee: true,
-      case: true,
-      suspects: true,
-      witnesses: true,
-      evidence: true,
-    },
+  const investigation = await prisma.$transaction(async (tx) => {
+    const created = await tx.investigation.create({
+      data: {
+        id: createId('inv'),
+        caseId: data.caseId,
+        assignedTo: data.assignedTo,
+        type: data.type,
+        priority: data.priority || 'MEDIUM',
+        description: data.description ?? null,
+        departmentId: data.departmentId ?? null,
+        status: 'ACTIVE',
+        evidence: [] as Prisma.InputJsonValue,
+      },
+    })
+
+    await tx.auditLog.create({
+      data: {
+        action: 'CREATE',
+        entityType: 'INVESTIGATION',
+        entityId: created.id,
+        officerId: data.assignedTo,
+        details: {
+          caseId: data.caseId,
+          type: data.type,
+          priority: data.priority || 'MEDIUM',
+        } as Prisma.InputJsonValue,
+      },
+    })
+
+    return created
   })
 
-  // Create audit log
-  await prisma.auditLog.create({
-    data: {
-      userId: data.assignedTo,
-      action: 'CREATE',
-      resourceType: 'Investigation',
-      resourceId: investigation.id,
-    },
-  })
-
-  return investigation
+  return buildInvestigationView(investigation)
 }
 
 export async function getInvestigation(investigationId: string) {
   const investigation = await prisma.investigation.findUnique({
     where: { id: investigationId },
-    include: {
-      assignee: {
-        select: {
-          id: true,
-          fullName: true,
-          email: true,
-          rank: true,
-          department: true,
-        },
-      },
-      case: true,
-      suspects: true,
-      witnesses: true,
-      evidence: true,
-      timeline: true,
-    },
   })
-  return investigation
+  if (!investigation) return null
+
+  const assignee = await getOfficerRef(investigation.assignedTo)
+  const suspects = await listSuspects(investigationId)
+  const witnesses = await listWitnesses(investigationId)
+  const timeline = await getInvestigationTimeline(investigationId)
+
+  return {
+    ...await buildInvestigationView(investigation),
+    assignee: assignee || { id: investigation.assignedTo, fullName: investigation.assignedTo },
+    suspects,
+    witnesses,
+    evidence: Array.isArray(investigation.evidence) ? investigation.evidence : [],
+    timeline,
+  }
 }
 
 export async function updateInvestigationStatus(
   investigationId: string,
   status: string,
-  updatedBy: string
+  updatedBy: string,
 ) {
   const investigation = await prisma.investigation.update({
     where: { id: investigationId },
-    data: {
-      status,
-      updatedAt: new Date(),
-    },
-    include: {
-      case: true,
-      assignee: true,
-    },
+    data: { status },
   })
 
-  // Create audit log
-  await prisma.auditLog.create({
-    data: {
-      userId: updatedBy,
-      action: 'UPDATE',
-      resourceType: 'Investigation',
-      resourceId: investigationId,
-      newValue: JSON.stringify({ status }),
-    },
+  await createAuditLog({
+    action: 'UPDATE',
+    entityType: 'INVESTIGATION',
+    entityId: investigationId,
+    userId: updatedBy,
+    details: { status },
   })
 
-  return investigation
+  return buildInvestigationView(investigation)
 }
 
 export async function listInvestigations(filters?: {
@@ -109,28 +171,18 @@ export async function listInvestigations(filters?: {
 }) {
   const investigations = await prisma.investigation.findMany({
     where: {
-      ...(filters?.caseId && { caseId: filters.caseId }),
-      ...(filters?.assignedTo && { assignedTo: filters.assignedTo }),
-      ...(filters?.status && { status: filters.status }),
-      ...(filters?.departmentId && { departmentId: filters.departmentId }),
-    },
-    include: {
-      assignee: true,
-      case: true,
-      suspects: { take: 5 },
-      witnesses: { take: 5 },
-      evidence: { take: 5 },
+      ...(filters?.caseId ? { caseId: filters.caseId } : {}),
+      ...(filters?.assignedTo ? { assignedTo: filters.assignedTo } : {}),
+      ...(filters?.status ? { status: filters.status } : {}),
+      ...(filters?.departmentId ? { departmentId: filters.departmentId } : {}),
     },
     orderBy: { createdAt: 'desc' },
     skip: filters?.skip || 0,
     take: filters?.take || 50,
   })
-  return investigations
-}
 
-// ============================================================================
-// SUSPECT OPERATIONS
-// ============================================================================
+  return Promise.all(investigations.map(buildInvestigationView))
+}
 
 export async function addSuspect(data: {
   investigationId: string
@@ -143,72 +195,68 @@ export async function addSuspect(data: {
 }) {
   const suspect = await prisma.suspect.create({
     data: {
+      id: createId('sus'),
       investigationId: data.investigationId,
       name: data.name,
       identityNumber: data.identityNumber,
-      birthDate: data.birthDate,
-      gender: data.gender,
-      address: data.address,
-      phoneNumber: data.phoneNumber,
+      birthDate: data.birthDate ?? null,
+      gender: data.gender ?? null,
+      address: data.address ?? null,
+      phoneNumber: data.phoneNumber ?? null,
       status: 'PERSON_OF_INTEREST',
     },
   })
-  return suspect
+
+  return buildSuspectView(suspect)
 }
 
 export async function updateSuspectStatus(
   suspectId: string,
   status: string,
-  updatedBy: string
+  updatedBy: string,
 ) {
   const suspect = await prisma.suspect.update({
     where: { id: suspectId },
     data: { status },
   })
 
-  // Create audit log
-  await prisma.auditLog.create({
-    data: {
-      userId: updatedBy,
-      action: 'UPDATE',
-      resourceType: 'Suspect',
-      resourceId: suspectId,
-      newValue: JSON.stringify({ status }),
-    },
+  await createAuditLog({
+    action: 'UPDATE',
+    entityType: 'SUSPECT',
+    entityId: suspectId,
+    userId: updatedBy,
+    details: { status },
   })
 
-  return suspect
+  return buildSuspectView(suspect)
 }
 
 export async function getSuspect(suspectId: string) {
   const suspect = await prisma.suspect.findUnique({
     where: { id: suspectId },
-    include: {
-      investigation: true,
-      interrogations: {
-        include: { interrogator: true },
-      },
-    },
   })
-  return suspect
+  if (!suspect) return null
+
+  const interrogations = await listSuspectInterrogations(suspectId)
+  return {
+    ...(await buildSuspectView(suspect)),
+    interrogations,
+  }
 }
 
 export async function listSuspects(investigationId: string) {
   const suspects = await prisma.suspect.findMany({
     where: { investigationId },
-    include: {
-      interrogations: {
-        orderBy: { date: 'desc' },
-        take: 5,
-      },
-    },
+    orderBy: { createdAt: 'desc' },
   })
-  return suspects
-}
 
-// ============================================================================
-// WITNESS OPERATIONS
-// ============================================================================
+  return Promise.all(
+    suspects.map(async (suspect) => ({
+      ...(await buildSuspectView(suspect)),
+      interrogations: await listSuspectInterrogations(suspect.id),
+    })),
+  )
+}
 
 export async function addWitness(data: {
   investigationId: string
@@ -223,54 +271,50 @@ export async function addWitness(data: {
 }) {
   const witness = await prisma.witness.create({
     data: {
+      id: createId('wit'),
       investigationId: data.investigationId,
       name: data.name,
-      identityNumber: data.identityNumber,
-      birthDate: data.birthDate,
-      gender: data.gender,
-      address: data.address,
-      phoneNumber: data.phoneNumber,
-      email: data.email,
-      statement: data.statement,
-      statementDate: data.statement ? new Date() : undefined,
+      identityNumber: data.identityNumber ?? null,
+      birthDate: data.birthDate ?? null,
+      gender: data.gender ?? null,
+      address: data.address ?? null,
+      phoneNumber: data.phoneNumber ?? null,
+      email: data.email ?? null,
+      statement: data.statement ?? null,
+      statementDate: data.statement ? now() : null,
       reliability: 'UNKNOWN',
     },
   })
-  return witness
+
+  return buildWitnessView(witness)
 }
 
 export async function updateWitnessReliability(
   witnessId: string,
   reliability: string,
-  updatedBy: string
+  updatedBy: string,
 ) {
   const witness = await prisma.witness.update({
     where: { id: witnessId },
     data: { reliability },
   })
 
-  // Create audit log
-  await prisma.auditLog.create({
-    data: {
-      userId: updatedBy,
-      action: 'UPDATE',
-      resourceType: 'Witness',
-      resourceId: witnessId,
-      newValue: JSON.stringify({ reliability }),
-    },
+  await createAuditLog({
+    action: 'UPDATE',
+    entityType: 'WITNESS',
+    entityId: witnessId,
+    userId: updatedBy,
+    details: { reliability },
   })
 
-  return witness
+  return buildWitnessView(witness)
 }
 
 export async function getWitness(witnessId: string) {
   const witness = await prisma.witness.findUnique({
     where: { id: witnessId },
-    include: {
-      investigation: true,
-    },
   })
-  return witness
+  return witness ? buildWitnessView(witness) : null
 }
 
 export async function listWitnesses(investigationId: string) {
@@ -278,12 +322,9 @@ export async function listWitnesses(investigationId: string) {
     where: { investigationId },
     orderBy: { createdAt: 'desc' },
   })
-  return witnesses
-}
 
-// ============================================================================
-// INTERROGATION OPERATIONS
-// ============================================================================
+  return Promise.all(witnesses.map(buildWitnessView))
+}
 
 export async function createInterrogation(data: {
   suspectId: string
@@ -298,55 +339,40 @@ export async function createInterrogation(data: {
 }) {
   const interrogation = await prisma.interrogation.create({
     data: {
+      id: createId('int'),
       suspectId: data.suspectId,
       interrogatorId: data.interrogatorId,
       date: data.date,
-      location: data.location,
-      duration: data.duration,
-      statement: data.statement,
+      location: data.location ?? null,
+      duration: data.duration ?? null,
+      statement: data.statement ?? null,
       outcome: data.outcome || 'ONGOING',
-      recordingUrl: data.recordingUrl,
-      transcriptUrl: data.transcriptUrl,
-    },
-    include: {
-      suspect: true,
-      interrogator: true,
+      recordingUrl: data.recordingUrl ?? null,
+      transcriptUrl: data.transcriptUrl ?? null,
     },
   })
 
-  // Create audit log
-  await prisma.auditLog.create({
-    data: {
-      userId: data.interrogatorId,
-      action: 'CREATE',
-      resourceType: 'Interrogation',
-      resourceId: interrogation.id,
-    },
+  await createAuditLog({
+    action: 'CREATE',
+    entityType: 'INTERROGATION',
+    entityId: interrogation.id,
+    userId: data.interrogatorId,
+    details: { suspectId: data.suspectId, outcome: interrogation.outcome },
   })
 
-  return interrogation
+  return buildInterrogationView(interrogation)
 }
 
 export async function getInterrogation(interrogationId: string) {
   const interrogation = await prisma.interrogation.findUnique({
     where: { id: interrogationId },
-    include: {
-      suspect: true,
-      interrogator: true,
-    },
   })
-  return interrogation
+  return interrogation ? buildInterrogationView(interrogation) : null
 }
 
 export async function listSuspectInterrogations(suspectId: string) {
-  const interrogations = await prisma.interrogation.findMany({
-    where: { suspectId },
-    include: {
-      interrogator: true,
-    },
-    orderBy: { date: 'desc' },
-  })
-  return interrogations
+  const interrogations = await getSuspectInterrogations(suspectId)
+  return Promise.all(interrogations.map(buildInterrogationView))
 }
 
 export async function completeInterrogation(
@@ -356,23 +382,20 @@ export async function completeInterrogation(
     statement?: string
     recordingUrl?: string
     transcriptUrl?: string
-  }
+  },
 ) {
   const interrogation = await prisma.interrogation.update({
     where: { id: interrogationId },
     data: {
       outcome: data.outcome,
-      statement: data.statement,
-      recordingUrl: data.recordingUrl,
-      transcriptUrl: data.transcriptUrl,
+      ...(data.statement !== undefined ? { statement: data.statement } : {}),
+      ...(data.recordingUrl !== undefined ? { recordingUrl: data.recordingUrl } : {}),
+      ...(data.transcriptUrl !== undefined ? { transcriptUrl: data.transcriptUrl } : {}),
     },
   })
-  return interrogation
-}
 
-// ============================================================================
-// INVESTIGATION TIMELINE OPERATIONS
-// ============================================================================
+  return buildInterrogationView(interrogation)
+}
 
 export async function addInvestigationTimeline(data: {
   investigationId: string
@@ -381,22 +404,21 @@ export async function addInvestigationTimeline(data: {
   location?: string
   createdBy: string
 }) {
-  const timeline = await prisma.investigationTimeline.create({
+  return prisma.investigationTimeline.create({
     data: {
+      id: createId('itl'),
       investigationId: data.investigationId,
       eventType: data.eventType,
       description: data.description,
-      location: data.location,
+      location: data.location ?? null,
       createdBy: data.createdBy,
     },
   })
-  return timeline
 }
 
 export async function getInvestigationTimeline(investigationId: string) {
-  const timeline = await prisma.investigationTimeline.findMany({
+  return prisma.investigationTimeline.findMany({
     where: { investigationId },
     orderBy: { createdAt: 'asc' },
   })
-  return timeline
 }

@@ -1,496 +1,842 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
-// Canonical NSSCP Prisma schema (production baseline)
-
-// Enums
-enum UserRole {
-  SUPER_ADMIN
-  MINISTRY_ADMIN
-  GOVERNORATE_ADMIN
-  DISTRICT_ADMIN
-  POLICE_ADMIN
-  OFFICER
-  VIEWER
-}
-
-enum HierarchyType {
-  MINISTRY
-  GOVERNORATE
-  DEPARTMENT
-  SECTION
-  UNIT
-}
-
-enum FieldType {
-  TEXT
-  NUMBER
-  DATE
-  BOOLEAN
-  SELECT
-  MULTI_SELECT
-  TEXTAREA
-  FILE
-  IMAGE
-}
-
-enum CaseStatus {
-  OPEN
-  UNDER_INVESTIGATION
-  PENDING_REVIEW
-  CLOSED
-  ARCHIVED
-}
-
-enum CasePriority {
-  LOW
-  MEDIUM
-  HIGH
-  CRITICAL
-}
-
-enum IncidentType {
-  THEFT
-  ASSAULT
-  TRAFFIC_ACCIDENT
-  DOMESTIC_VIOLENCE
-  NARCOTICS
-  FRAUD
-  HOMICIDE
-  PUBLIC_DISTURBANCE
-  OTHER
-}
-
-enum IncidentStatus {
-  REPORTED
-  UNDER_INVESTIGATION
-  RESOLVED
-  UNFOUNDED
-}
-
-enum VisitStatus {
-  SCHEDULED
-  COMPLETED
-  CANCELLED
-  REJECTED
-}
-
-enum CellType {
-  SINGLE
-  SHARED
-  HIGH_SECURITY
-  SOLITARY_CONFINEMENT
-  MEDICAL
-}
-
-enum PrisonerStatus {
-  REMAND
-  SENTENCED
-  PAROLE
-  ESCAPED
-  DECEASED
-  RELEASED
-  TRANSFERRED
-}
-
-enum OperationStatus {
-  PLANNED
-  ACTIVE
-  COMPLETED
-  CANCELLED
-  STANDING_BY
-}
-
-enum PatrolStatus {
-  ACTIVE
-  COMPLETED
-  CANCELLED
-  ON_BREAK
-}
-
-enum EmergencyCallStatus {
-  RECEIVED
-  DISPATCHED
-  ON_SCENE
-  RESOLVED
-  CANCELLED
-}
-
-enum TrafficViolationStatus {
-  ISSUED
-  PAID
-  DISPUTED
-  DISMISSED
-  REFERRED_TO_COURT
-}
-
-// Identity & RBAC
-model User {
-  id           String  @id @default(cuid())
-  username     String  @unique
-  email        String? @unique
-  passwordHash String
-  fullName     String?
-  nationalId   String? @unique
-  militaryId   String? @unique
-  role         Role?   @relation("PrimaryRole", fields: [roleId], references: [id])
-  roleId       String?
-
-  departmentId String?
-  department   Department? @relation(fields: [departmentId], references: [id])
-
-  governorateId String?
-  stationId     String?
-
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  roles             Role[]           @relation("UserRoles")
-  permissions       Permission[]     @relation("UserPermissions")
-  auditLogs         AuditLog[]
-  HierarchyEntity   HierarchyEntity? @relation(fields: [hierarchyEntityId], references: [id])
-  hierarchyEntityId String?
-  HierarchyUser     HierarchyUser[]
-}
-
-model Role {
-  id              String           @id @default(cuid())
-  name            String           @unique
-  description     String?
-  users           User[]           @relation("UserRoles")
-  primaryUsers    User[]           @relation("PrimaryRole")
-  permissions     Permission[]
-  rolePermissions RolePermission[]
-}
-
-model Permission {
-  id              String           @id @default(cuid())
-  name            String           @unique
-  description     String?
-  resource        String
-  action          String
-  roles           Role[]
-  users           User[]           @relation("UserPermissions")
-  rolePermissions RolePermission[]
-}
-
-model RolePermission {
-  id           String     @id @default(cuid())
-  roleId       String
-  permissionId String
-  granted      Boolean    @default(true)
-  role         Role       @relation(fields: [roleId], references: [id])
-  permission   Permission @relation(fields: [permissionId], references: [id])
-
-  @@unique([roleId, permissionId])
-}
-
-model UserPermission {
-  id           String  @id @default(cuid())
-  userId       String
-  permissionId String
-  granted      Boolean @default(true)
-}
-
 model AuditLog {
-  id         String   @id @default(cuid())
-  userId     String?
-  user       User?    @relation(fields: [userId], references: [id])
-  action     String
-  resource   String
-  resourceId String
-  oldValue   Json?
-  newValue   Json?
-  ipAddress  String?
-  userAgent  String?
-  timestamp  DateTime @default(now())
+  id                 String            @id @default(cuid())
+  action             String
+  entityType         String
+  entityId           String
+  officerId          String?
+  details            Json?
+  ipAddress          String?
+  userAgent          String?
+  createdAt          DateTime          @default(now())
+  centralCommandId   String?
+  provinceId         String?
+  level3UnitId       String?
+  level4DepartmentId String?
+  level5SectionId    String?
+  level6UnitId       String?
+  dataRecordId       String?
+  CentralCommand     CentralCommand?   @relation(fields: [centralCommandId], references: [id], onDelete: Cascade)
+  DataRecord         DataRecord?       @relation(fields: [dataRecordId], references: [id], onDelete: Cascade)
+  Level3Unit         Level3Unit?       @relation(fields: [level3UnitId], references: [id], onDelete: Cascade)
+  Level4Department   Level4Department? @relation(fields: [level4DepartmentId], references: [id], onDelete: Cascade)
+  Level5Section      Level5Section?    @relation(fields: [level5SectionId], references: [id], onDelete: Cascade)
+  Level6Unit         Level6Unit?       @relation(fields: [level6UnitId], references: [id], onDelete: Cascade)
+  Officer            Officer?          @relation(fields: [officerId], references: [id])
+  Province           Province?         @relation(fields: [provinceId], references: [id], onDelete: Cascade)
 }
 
-// National Organization
-model Governorate {
-  id          String       @id @default(cuid())
+model WantedPerson {
+  id                 Int                  @id @default(autoincrement())
+  fullName           String
+  identityNumber     String?              @unique
+  nationality        String               @default("يمني")
+  chargeDetails      String?
+  issuingProvince    String
+  dangerLevel        String               @default("عالي جداً")
+  status             String               @default("مطلوب حياً")
+  createdAt          DateTime             @default(now())
+  SystemNotification SystemNotification[]
+
+  // 🔽 أضف هذين السطرين هنا لحل خطأ العلاقات العكسية
+  WantedAttachment WantedAttachment[]
+  Circular         Circular[]
+}
+
+model CentralCommand {
+  id          String     @id
   name        String
-  code        String       @unique
-  districts   District[]
-  departments Department[]
+  code        String     @unique
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime
+  AuditLog    AuditLog[]
+  Province    Province[]
 }
 
-model District {
-  id            String      @id @default(cuid())
-  name          String
-  code          String      @unique
-  governorateId String
-  governorate   Governorate @relation(fields: [governorateId], references: [id])
+model DataRecord {
+  id            String     @id
+  level6UnitId  String
+  recordType    String
+  data          Json
+  status        String     @default("active")
+  securityLevel String     @default("internal")
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime
+  AuditLog      AuditLog[]
+  Level6Unit    Level6Unit @relation(fields: [level6UnitId], references: [id])
+  attachments   GeneralAttachment[]
 }
 
-model Department {
-  id            String       @id @default(cuid())
-  name          String
-  code          String?      @unique
-  governorateId String?
-  governorate   Governorate? @relation(fields: [governorateId], references: [id])
-  users         User[]
+model Facility {
+  id               Int              @id @default(autoincrement())
+  province         String
+  district         String
+  facilityType     String
+  facilityName     String
+  contactPerson    String?
+  phoneNumber      String?
+  registrationDate DateTime         @default(now())
+  MovementReport   MovementReport[]
 }
 
-// Hierarchy
-model HierarchyEntity {
-  id            String            @id @default(cuid())
-  name          String
-  code          String?           @unique
-  type          HierarchyType
-  parentId      String?
-  parent        HierarchyEntity?  @relation("HierarchyParent", fields: [parentId], references: [id])
-  children      HierarchyEntity[] @relation("HierarchyParent")
-  users         User[]
-  HierarchyUser HierarchyUser[]
+model Level3Unit {
+  id               String             @id
+  name             String
+  code             String             @unique
+  unitType         String
+  provinceId       String
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime
+  AuditLog         AuditLog[]
+  Province         Province           @relation(fields: [provinceId], references: [id])
+  Level4Department Level4Department[]
 }
 
-model HierarchyUser {
-  id         String          @id @default(cuid())
-  userId     String
-  entityId   String
-  user       User            @relation(fields: [userId], references: [id])
-  entity     HierarchyEntity @relation(fields: [entityId], references: [id])
-  assignedAt DateTime        @default(now())
+model Level4Department {
+  id             String          @id
+  name           String
+  code           String          @unique
+  departmentType String
+  level3UnitId   String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime
+  AuditLog       AuditLog[]
+  Level3Unit     Level3Unit      @relation(fields: [level3UnitId], references: [id])
+  Level5Section  Level5Section[]
 }
 
-// Dynamic forms
-model DynamicForm {
-  id           String         @id @default(cuid())
-  name         String
-  schema       Json
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  FormTemplate FormTemplate[]
+model Level5Section {
+  id                 String           @id
+  name               String
+  code               String           @unique
+  sectionType        String
+  level4DepartmentId String
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime
+  AuditLog           AuditLog[]
+  Level4Department   Level4Department @relation(fields: [level4DepartmentId], references: [id])
+  Level6Unit         Level6Unit[]
 }
 
-model FormTemplate {
-  id            String       @id @default(cuid())
-  name          String
-  description   String?
-  dynamicForm   DynamicForm? @relation(fields: [dynamicFormId], references: [id])
-  dynamicFormId String?
+model Level6Unit {
+  id              String        @id
+  name            String
+  code            String        @unique
+  unitType        String
+  level5SectionId String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime
+  AuditLog        AuditLog[]
+  DataRecord      DataRecord[]
+  Level5Section   Level5Section @relation(fields: [level5SectionId], references: [id])
 }
 
-model FormSubmission {
-  id          String   @id @default(cuid())
-  templateId  String
-  data        Json
-  submittedBy String?
+model LevelAssignment {
+  id        String   @id
+  officerId String
+  level     Int
+  unitId    String
+  canView   Boolean  @default(true)
+  canEdit   Boolean  @default(false)
+  canDelete Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  Officer   Officer  @relation(fields: [officerId], references: [id])
+
+  @@unique([officerId, level, unitId])
+}
+
+model MovementReport {
+  id                 Int                  @id @default(autoincrement())
+  facilityId         Int
+  guestName          String
+  guestIdentity      String
+  checkInTime        DateTime             @default(now())
+  roomOrSection      String?
+  recordedBy         String
+  Facility           Facility             @relation(fields: [facilityId], references: [id])
+  SystemNotification SystemNotification[]
+}
+
+model Officer {
+  id              String            @id
+  name            String
+  rank            String
+  role            String
+  department      String
+  accessLevel     Int               @default(1)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime
+  AuditLog        AuditLog[]
+  LevelAssignment LevelAssignment[]
+  authSessions    AuthSession[]
+}
+
+model Province {
+  id               String         @id
+  name             String
+  code             String         @unique
+  centralCommandId String
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime
+  AuditLog         AuditLog[]
+  Level3Unit       Level3Unit[]
+  CentralCommand   CentralCommand @relation(fields: [centralCommandId], references: [id])
+}
+
+model Report {
+  id          String   @id
+  title       String
+  description String
+  department  String
+  status      String   @default("active")
+  priority    String
   createdAt   DateTime @default(now())
 }
 
-model FormAttachment {
-  id           String @id @default(cuid())
-  submissionId String
-  filename     String
-  url          String
+model SystemNotification {
+  id             Int    @id @default(autoincrement())
+  alertType      String @default("إشعار أحمر - خطير")
+  wantedId       Int?
+  reportId       Int?
+  detectProvince String
+  detectFacility String
+
+  targetProvince String
+  isResolved     Boolean         @default(false)
+  alertTime      DateTime        @default(now())
+  MovementReport MovementReport? @relation(fields: [reportId], references: [id])
+  WantedPerson   WantedPerson?   @relation(fields: [wantedId], references: [id])
 }
 
-model FormSignature {
-  id           String @id @default(cuid())
-  submissionId String
-  signerId     String
-  signature    String
+model WantedAttachment {
+  id             String       @id @default(uuid())
+  wantedPersonId Int // INTEGER متوافق مع الـ Legacy
+  type           String
+  filePath       String
+  description    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  wantedPerson   WantedPerson @relation(fields: [wantedPersonId], references: [id], onDelete: Cascade)
+
+  @@index([wantedPersonId])
 }
 
-model FormApproval {
-  id           String @id @default(cuid())
-  submissionId String
-  approverId   String
-  status       String
+model Circular {
+  id               String        @id @default(uuid())
+  circularNumber   String        @unique
+  title            String
+  description      String?
+  type             String
+  priority         String        @default("NORMAL")
+  status           String        @default("ACTIVE")
+  issuedDate       DateTime
+  expiryDate       DateTime?
+  issuingAuthority String
+  wantedPersonId   Int? // INTEGER متوافق مع الـ Legacy
+  details          Json?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  wantedPerson     WantedPerson? @relation(fields: [wantedPersonId], references: [id], onDelete: Cascade)
+
+  @@index([status])
 }
 
-// Archive
-model ArchiveFolder {
-  id       String  @id @default(cuid())
-  name     String
-  parentId String?
+// ============================================================================
+// SAFE PATCH — GeneralAttachment (مرفقات موحدة لجميع الاستمارات الـ 24)
+// ============================================================================
+// يرتبط بجدول DataRecord لدعم جميع أنواع المرفقات لجميع الإدارات
+// (صور، فيديو، تسجيلات صوتية، PDF، Word، Excel)
+// دون المساس بأي جدول قائم — إضافة آمنة بالكامل.
+// ============================================================================
+
+model GeneralAttachment {
+  id           String     @id @default(uuid())
+  recordId     String // FK → DataRecord
+  record       DataRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  fileName     String // الاسم المخزن على الخادم
+  originalName String // الاسم الأصلي للملف
+  mimeType     String // نوع الملف (image/jpeg, application/pdf, video/mp4...)
+  fileSize     Int // الحجم بالبايت
+  filePath     String // المسار الكامل للملف
+  type         String // تصنيف: IMAGE, VIDEO, AUDIO, PDF, WORD, EXCEL, OTHER
+  description  String?
+  uploadedBy   String? // معرف الضابط الذي رفع الملف
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([recordId])
+  @@index([type])
 }
 
-model ArchiveDocument {
-  id        String   @id @default(cuid())
-  title     String
-  folderId  String?
-  createdBy String?
-  createdAt DateTime @default(now())
-}
-
-model DocumentVersion {
-  id           String   @id @default(cuid())
-  documentId   String
-  versionIndex Int
-  contentUrl   String
-  createdAt    DateTime @default(now())
-}
-
-// Cases / Investigations / Evidence
-model Case {
-  id          String        @id @default(cuid())
-  title       String
-  description String?
-  status      CaseStatus    @default(OPEN)
-  priority    CasePriority?
-  createdBy   String?
-  createdAt   DateTime      @default(now())
-}
-
-model Investigation {
-  id        String   @id @default(cuid())
-  caseId    String
-  leadId    String?
-  status    String
-  createdAt DateTime @default(now())
-}
-
-model Evidence {
-  id          String  @id @default(cuid())
-  caseId      String
-  description String?
-  storedAt    String?
-}
-
-model CrimeScene {
-  id       String  @id @default(cuid())
-  caseId   String
-  location String?
-}
-
-// Wanted persons
-model WantedPerson {
-  id        String   @id @default(cuid())
-  name      String
-  aliases   String?
-  createdAt DateTime @default(now())
-}
-
-// Operations / Patrols / Incidents
-model Operation {
-  id        String          @id @default(cuid())
-  name      String
-  status    OperationStatus @default(PLANNED)
-  createdAt DateTime        @default(now())
-}
-
-model OperationTimeline {
-  id          String   @id @default(cuid())
-  operationId String
-  note        String?
-  timestamp   DateTime @default(now())
-}
-
-model Incident {
-  id          String         @id @default(cuid())
-  operationId String?
-  type        IncidentType
-  status      IncidentStatus @default(REPORTED)
-  createdAt   DateTime       @default(now())
-}
-
-model IncidentTimeline {
-  id         String   @id @default(cuid())
-  incidentId String
-  note       String?
-  timestamp  DateTime @default(now())
-}
-
-// Investigations details
-model Suspect {
-  id              String @id @default(cuid())
-  investigationId String
-  name            String
-}
-
-model Witness {
-  id              String @id @default(cuid())
-  investigationId String
-  name            String
-}
-
-model Interrogation {
-  id              String  @id @default(cuid())
-  investigationId String
-  notes           String?
-}
-
-model InvestigationTimeline {
-  id              String   @id @default(cuid())
-  investigationId String
-  note            String?
-  timestamp       DateTime @default(now())
-}
-
-// Workflow
 model WorkflowState {
-  id   String @id @default(cuid())
-  name String
+  id            String              @id
+  workflowType   String
+  stateName      String
+  displayName    String
+  orderSequence  Int
+  requiresApproval Boolean          @default(false)
+  approvalRole   String?
+  isDeleted      Boolean             @default(false)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  transitionsFrom WorkflowTransition[] @relation("WorkflowTransitionFromState")
+  transitionsTo   WorkflowTransition[] @relation("WorkflowTransitionToState")
+
+  @@unique([workflowType, stateName])
+  @@index([workflowType, orderSequence])
 }
 
 model WorkflowTransition {
-  id        String @id @default(cuid())
-  fromState String
-  toState   String
-  name      String
+  id            String             @id
+  fromStateId    String
+  toStateId      String
+  requiresApproval Boolean         @default(false)
+  approvalRole   String?
+  condition      String?
+  description    String?
+  sla            Int?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  fromState      WorkflowState      @relation("WorkflowTransitionFromState", fields: [fromStateId], references: [id], onDelete: Cascade)
+  toState        WorkflowState      @relation("WorkflowTransitionToState", fields: [toStateId], references: [id])
+  approvals      WorkflowApproval[]
+
+  @@unique([fromStateId, toStateId])
+  @@index([fromStateId])
+  @@index([toStateId])
 }
 
 model WorkflowApproval {
-  id         String @id @default(cuid())
-  refId      String
-  approverId String
-  status     String
+  id                  String             @id @default(cuid())
+  workflowTransitionId String
+  entityId            String
+  requestedBy         String
+  requestedByRole     String
+  requiredRole        String
+  status              String             @default("PENDING")
+  approvedBy          String?
+  approvalDate        DateTime?
+  rejectionReason     String?
+  reason              String?
+  createdAt           DateTime           @default(now())
+  expiresAt           DateTime
+  transition          WorkflowTransition  @relation(fields: [workflowTransitionId], references: [id], onDelete: Cascade)
+
+  @@index([entityId])
+  @@index([requiredRole, status])
 }
 
 model WorkflowEscalation {
-  id         String @id @default(cuid())
-  workflowId String
-  rule       String
+  id              String    @id @default(cuid())
+  entityId        String
+  workflowType    String
+  currentState    String
+  escalationLevel Int       @default(1)
+  escalatedTo     String?
+  escalationReason String?
+  escalationTime  DateTime  @default(now())
+  resolvedTime    DateTime?
+  resolved        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([entityId])
+  @@index([workflowType, resolved])
 }
 
 model WorkflowTransitionLog {
-  id           String   @id @default(cuid())
-  transitionId String
-  metadata     Json?
-  createdAt    DateTime @default(now())
+  id               String   @id @default(cuid())
+  entityId         String
+  workflowType     String
+  previousState    String
+  newState         String
+  userId           String
+  userRole         String
+  userDepartment   String
+  reason           String?
+  requiresApproval Boolean  @default(false)
+  approvalStatus   String?
+  approvedBy       String?
+  approvalTimestamp DateTime?
+  timestamp        DateTime @default(now())
+  metadata         Json?
+
+  @@index([entityId])
+  @@index([workflowType, timestamp])
 }
 
-// Prison system
+model WorkflowAutomationHistory {
+  id          String   @id @default(cuid())
+  entityId    String
+  workflowType String
+  ruleKey     String
+  actionName  String
+  status      String
+  details     Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([entityId])
+  @@index([workflowType, createdAt])
+}
+
+model WorkflowSlaRule {
+  id          String   @id @default(cuid())
+  workflowType String
+  fromState   String
+  toState     String
+  slaHours    Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workflowType, fromState, toState])
+  @@index([workflowType])
+}
+
+model Operation {
+  id            String             @id
+  name          String
+  code          String             @unique
+  type          String
+  commanderId   String
+  createdById   String
+  startDate     DateTime
+  endDate       DateTime?
+  objectives    String
+  departmentId  String
+  location      String?
+  province      String?
+  district      String?
+  priority      String
+  status        String
+  updatedById   String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  timelines     OperationTimeline[]
+
+  @@index([departmentId])
+  @@index([commanderId])
+  @@index([status])
+}
+
+model OperationTimeline {
+  id           String    @id @default(cuid())
+  operationId  String
+  eventType    String
+  description  String
+  location     String?
+  createdBy    String
+  createdAt    DateTime  @default(now())
+  operation    Operation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+
+  @@index([operationId])
+}
+
+model Incident {
+  id              String              @id
+  incidentNumber  String              @unique
+  type            String
+  severity        String
+  reportedBy      String
+  departmentId    String
+  location        String
+  province        String
+  district        String
+  description     String
+  respondingTeam  String?
+  status          String
+  reportTime      DateTime
+  resolvedTime    DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  timelines       IncidentTimeline[]
+
+  @@index([departmentId])
+  @@index([status])
+  @@index([severity])
+}
+
+model IncidentTimeline {
+  id          String   @id @default(cuid())
+  incidentId  String
+  eventType   String
+  description String
+  createdBy   String
+  createdAt   DateTime @default(now())
+  incident    Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  @@index([incidentId])
+}
+
 model Prisoner {
-  id         String         @id @default(cuid())
-  fullName   String
-  nationalId String?
-  status     PrisonerStatus
-  admittedAt DateTime?
+  id                   String              @id
+  prisonerId           String              @unique
+  fullName             String
+  dateOfBirth          DateTime
+  gender               String
+  nationality          String
+  idNumber             String
+  crimeType            String
+  sentenceLength       Int?
+  sentenceStartDate    DateTime
+  estimatedReleaseDate DateTime?
+  currentCellId        String?
+  bookingDate          DateTime
+  arrestReason         String
+  departmentId         String?
+  status               String
+  actualReleaseDate    DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  disciplinaryRecords  DisciplinaryRecord[]
+  medicalRecords       MedicalRecord[]
+  visitorLogs          VisitorLog[]
+  currentCell          Cell?               @relation(fields: [currentCellId], references: [id])
+
+  @@index([departmentId])
+  @@index([status])
+  @@index([currentCellId])
 }
 
 model Cell {
-  id       String   @id @default(cuid())
-  name     String
-  type     CellType
-  capacity Int?
+  id            String    @id
+  cellNumber    String
+  block         String
+  capacity      Int
+  cellType      String
+  departmentId  String?
+  status        String
+  occupancy     Int
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  prisoners     Prisoner[]
+
+  @@index([departmentId])
+  @@index([block])
+  @@index([status])
 }
 
 model DisciplinaryRecord {
-  id         String  @id @default(cuid())
-  prisonerId String
-  notes      String?
+  id             String   @id @default(cuid())
+  prisonerId     String
+  violationType  String
+  description    String
+  severity       String
+  recordedBy     String
+  actionTaken    String?
+  recordDate     DateTime
+  prisoner       Prisoner @relation(fields: [prisonerId], references: [id], onDelete: Cascade)
+
+  @@index([prisonerId])
 }
 
 model MedicalRecord {
-  id         String  @id @default(cuid())
-  prisonerId String
-  notes      String?
+  id              String   @id @default(cuid())
+  prisonerId      String
+  description     String
+  medicalStaff    String
+  treatment       String?
+  followUpRequired Boolean @default(false)
+  examinationDate DateTime
+  prisoner        Prisoner @relation(fields: [prisonerId], references: [id], onDelete: Cascade)
+
+  @@index([prisonerId])
 }
 
 model VisitorLog {
-  id          String   @id @default(cuid())
-  prisonerId  String
-  visitorName String
-  visitedAt   DateTime @default(now())
+  id               String   @id @default(cuid())
+  prisonerId       String
+  visitorName      String
+  visitorRelation  String
+  visitDate        DateTime
+  duration         Int?
+  purpose          String?
+  prisoner         Prisoner @relation(fields: [prisonerId], references: [id], onDelete: Cascade)
+
+  @@index([prisonerId])
+  @@index([visitDate])
+}
+
+model Investigation {
+  id             String             @id
+  caseId         String
+  assignedTo     String
+  type           String
+  priority       String
+  description    String?
+  departmentId   String?
+  status         String
+  evidence       Json
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  suspects       Suspect[]
+  witnesses      Witness[]
+  timelines      InvestigationTimeline[]
+
+  @@index([caseId])
+  @@index([assignedTo])
+  @@index([departmentId])
+  @@index([status])
+}
+
+model Suspect {
+  id              String             @id
+  investigationId String
+  name            String
+  identityNumber  String
+  birthDate       DateTime?
+  gender          String?
+  address         String?
+  phoneNumber     String?
+  status          String
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  investigation   Investigation      @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+  interrogations  Interrogation[]
+
+  @@index([investigationId])
+  @@index([status])
+}
+
+model Witness {
+  id              String             @id
+  investigationId String
+  name            String
+  identityNumber  String?
+  birthDate       DateTime?
+  gender          String?
+  address         String?
+  phoneNumber     String?
+  email           String?
+  statement       String?
+  statementDate   DateTime?
+  reliability     String
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  investigation   Investigation      @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+
+  @@index([investigationId])
+}
+
+model Interrogation {
+  id              String    @id
+  suspectId       String
+  interrogatorId  String
+  date            DateTime
+  location        String?
+  duration        Int?
+  statement       String?
+  outcome         String
+  recordingUrl    String?
+  transcriptUrl   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  suspect         Suspect   @relation(fields: [suspectId], references: [id], onDelete: Cascade)
+
+  @@index([suspectId])
+  @@index([date])
+}
+
+model InvestigationTimeline {
+  id              String        @id @default(cuid())
+  investigationId String
+  eventType       String
+  description     String
+  location        String?
+  createdBy       String
+  createdAt       DateTime      @default(now())
+  investigation   Investigation @relation(fields: [investigationId], references: [id], onDelete: Cascade)
+
+  @@index([investigationId])
+}
+
+model FormTemplate {
+  id            String          @id
+  name          String
+  displayName   String
+  description   String?
+  formType      String          @unique
+  departmentId  String?
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  fields        FormField[]
+  submissions   FormSubmission[]
+
+  @@index([departmentId])
+  @@index([isActive])
+}
+
+model FormField {
+  id              String       @id
+  formTemplateId   String
+  fieldName       String
+  displayLabel    String
+  fieldType       String
+  required        Boolean      @default(false)
+  order           Int
+  options         String?
+  validation      String?
+  placeholder     String?
+  template        FormTemplate @relation(fields: [formTemplateId], references: [id], onDelete: Cascade)
+
+  @@index([formTemplateId])
+  @@index([order])
+}
+
+model FormSubmission {
+  id                String             @id
+  templateId        String
+  submittedBy       String
+  departmentId      String
+  formData          Json
+  relatedEntityId   String?
+  relatedEntityType  String?
+  status            String
+  approvedBy       String?
+  approvedAt       DateTime?
+  rejectionReason  String?
+  isDeleted        Boolean            @default(false)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  template         FormTemplate       @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  attachments      FormAttachment[]
+  signatures       FormSignature[]
+  approvals        FormApproval[]
+
+  @@index([templateId])
+  @@index([departmentId])
+  @@index([submittedBy])
+  @@index([status])
+}
+
+model FormAttachment {
+  id            String         @id
+  submissionId  String
+  fileName      String
+  fileUrl       String
+  fileSize      BigInt
+  mimeType      String
+  uploadedBy    String
+  submission    FormSubmission  @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
+}
+
+model FormSignature {
+  id            String         @id
+  submissionId  String
+  signedBy      String
+  signatureData String
+  signatureRole String
+  signedAt      DateTime       @default(now())
+  submission    FormSubmission  @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
+}
+
+model FormApproval {
+  id              String         @id
+  submissionId    String
+  requiredRole    String
+  status          String
+  approvedBy      String?
+  approvalDate    DateTime?
+  rejectionReason String?
+  comments        String?
+  createdAt       DateTime       @default(now())
+  submission      FormSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
+  @@index([requiredRole, status])
+}
+
+model ArchiveFolder {
+  id                String              @id
+  name              String
+  code              String              @unique
+  description       String?
+  hierarchyEntityId String
+  parentFolderId    String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  parentFolder      ArchiveFolder?      @relation("ArchiveFolderChildren", fields: [parentFolderId], references: [id])
+  childFolders      ArchiveFolder[]     @relation("ArchiveFolderChildren")
+  documents         ArchiveDocument[]
+
+  @@index([hierarchyEntityId])
+  @@index([parentFolderId])
+}
+
+model ArchiveDocument {
+  id              String                  @id
+  title           String
+  description     String?
+  documentNumber  String                  @unique
+  folderId        String
+  filePath        String
+  mimeType        String
+  fileSize        Int
+  tags            String[]
+  metadata        Json?
+  status          String                  @default("ACTIVE")
+  archivedAt      DateTime?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  folder          ArchiveFolder           @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  versions        ArchiveDocumentVersion[]
+
+  @@index([folderId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ArchiveDocumentVersion {
+  id            String          @id @default(cuid())
+  documentId    String
+  version       Int
+  filePath      String
+  fileSize      Int
+  mimeType      String
+  uploadedById  String
+  changes       String?
+  createdAt     DateTime        @default(now())
+  document      ArchiveDocument  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, version])
+  @@index([documentId])
+}
+
+model AuthSession {
+  id                  String   @id
+  officerId           String
+  username            String
+  role                String
+  deviceId            String
+  ip                  String
+  userAgent           String
+  hierarchyEntityId   String?
+  hierarchyEntityName String?
+  hierarchyEntityType String?
+  isValid             Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  lastActive          DateTime @default(now())
+  expiresAt           DateTime
+  updatedAt           DateTime @updatedAt
+
+  officer Officer @relation(fields: [officerId], references: [id], onDelete: Cascade)
+
+  @@index([officerId])
+  @@index([expiresAt])
+  @@index([isValid])
 }

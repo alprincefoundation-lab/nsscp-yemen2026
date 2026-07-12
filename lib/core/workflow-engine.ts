@@ -114,33 +114,13 @@ export async function executeTransition(
         };
     }
 
-    // Build update data based on entity type
-    const updateData: Record<string, unknown> = {};
-    let entityIdentifier: { where: Record<string, string> } = { where: { id: input.entityId } };
-
-    switch (input.entityType) {
-        case 'CASE':
-            updateData.status = input.toStatus;
-            break;
-        case 'REPORT':
-            updateData.status = input.toStatus;
-            break;
-        case 'OPERATION':
-            updateData.status = input.toStatus;
-            break;
-        case 'EVIDENCE':
-            updateData.status = input.toStatus;
-            break;
-        default:
-            updateData.status = input.toStatus;
-    }
+    const updateData = { status: input.toStatus };
 
     try {
-        // Determine the Prisma model
-        const modelMap: Record<string, any> = {
-            CASE: prisma.case,
-            OPERATION: prisma.operation,
-            EVIDENCE: prisma.evidence,
+        // Determine the Prisma model that exists in the current schema
+        const modelMap: Partial<Record<WorkflowEntityType, { update(args: { where: { id: string }; data: { status: string } }): Promise<unknown> }>> = {
+            REPORT: prisma.report,
+            EVIDENCE: prisma.dataRecord,
         };
 
         const model = modelMap[input.entityType];
@@ -291,7 +271,22 @@ export async function getWorkflowHistory(entityType: string, entityId: string) {
         },
         orderBy: { createdAt: 'desc' },
         include: {
-            user: { select: { id: true, username: true, fullName: true } },
+            Officer: { select: { id: true, name: true, rank: true, role: true, department: true } },
         },
-    });
+    }).then((logs) =>
+        logs.map((log) => ({
+            ...log,
+            user: log.Officer
+                ? {
+                    id: log.Officer.id,
+                    username: log.Officer.name,
+                    fullName: log.Officer.name,
+                    badgeNumber: log.Officer.id,
+                    rank: log.Officer.rank,
+                    role: log.Officer.role,
+                    department: log.Officer.department,
+                }
+                : null,
+        })),
+    );
 }

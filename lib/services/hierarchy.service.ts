@@ -1,13 +1,31 @@
 import { prisma } from '@/lib/prisma';
-import { validateHierarchyRelation } from '@/lib/hierarchy-service';
+import {
+  validateHierarchyRelation,
+  createHierarchyEntity as createHierarchyNode,
+  updateHierarchyEntity as updateHierarchyNode,
+  deleteHierarchyEntity as deleteHierarchyNode,
+  getHierarchyTree,
+} from '@/lib/hierarchy-service';
 import { createAuditLog, extractRequestMeta } from '@/lib/core/audit-engine';
 import { createHierarchySchema, updateHierarchySchema } from '@/lib/schemas/hierarchy.schema';
 import { z } from 'zod';
 
 export async function getAllHierarchyEntities() {
-  return await prisma.hierarchyEntity.findMany({
-    orderBy: { createdAt: 'asc' },
+  const roots = await prisma.centralCommand.findMany({
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true, code: true },
   });
+
+  return Promise.all(
+    roots.map(async (root) => ({
+      id: root.id,
+      name: root.name,
+      code: root.code,
+      type: 'MINISTRY',
+      parentId: null,
+      children: await getHierarchyTree(root.id, 6),
+    })),
+  );
 }
 
 export async function createHierarchyEntity(
@@ -20,13 +38,11 @@ export async function createHierarchyEntity(
     throw new Error('مخالفة صريحة للتراتبية الإدارية والأمنية المعتمدة.');
   }
 
-  const newEntity = await prisma.hierarchyEntity.create({
-    data: {
-      name: data.name,
-      code: data.code,
-      type: data.type,
-      parentId: data.parentId || null,
-    },
+  const newEntity = await createHierarchyNode({
+    name: data.name,
+    code: data.code,
+    type: data.type,
+    parentId: data.parentId || undefined,
   });
 
   const meta = extractRequestMeta(request);
@@ -50,12 +66,9 @@ export async function updateHierarchyEntity(
   userId: string,
   request: Request
 ) {
-  const updated = await prisma.hierarchyEntity.update({
-    where: { id: data.id },
-    data: {
-      name: data.name,
-      code: data.code,
-    },
+  const updated = await updateHierarchyNode(data.id, {
+    name: data.name,
+    parentId: undefined,
   });
 
   const meta = extractRequestMeta(request);
@@ -79,15 +92,7 @@ export async function deleteHierarchyEntity(
   userId: string,
   request: Request
 ) {
-  const hasChildren = await prisma.hierarchyEntity.findFirst({
-    where: { parentId: id },
-  });
-
-  if (hasChildren) {
-    throw new Error('حظر أمني: لا يمكن حذف الكيان لوجود فروع تابعة له في شجرة النظام.');
-  }
-
-  await prisma.hierarchyEntity.delete({ where: { id } });
+  await deleteHierarchyNode(id);
 
   const meta = extractRequestMeta(request);
   await createAuditLog({

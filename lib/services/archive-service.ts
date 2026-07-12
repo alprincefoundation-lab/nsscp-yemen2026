@@ -1,572 +1,685 @@
 /**
- * Archive Service – Manages archive folders, documents, and archival workflows for NSSCP.
- * Integrates with Hierarchy for scope isolation, Audit Engine for logging, and Workflow Engine for approval chains.
+ * Archive Service aligned with the current Prisma schema.
+ * Persists folders, documents, and versions in PostgreSQL.
  */
-import { prisma } from '@/lib/prisma';
-import { createAuditLog } from '@/lib/core/audit-engine';
-import { executeTransition, type WorkflowEntityType, type WorkflowAction } from '@/lib/core/workflow-engine';
-import { getDataScopeFilter, hasHierarchyScopeAccess, type RBACUser } from '@/lib/core/rbac-engine';
-
-// ============================================
-// Types
-// ============================================
+import { Prisma } from '@prisma/client'
+import { randomUUID } from 'crypto'
+import { createAuditLog } from '@/lib/core/audit-engine'
+import { hasHierarchyScopeAccess, type RBACUser } from '@/lib/core/rbac-engine'
+import { getEntityBreadcrumb } from '@/lib/hierarchy-service'
 
 export interface ArchiveFolderInput {
-    name: string;
-    code: string;
-    description?: string;
-    hierarchyEntityId: string;
-    parentFolderId?: string;
+  name: string
+  code: string
+  description?: string
+  hierarchyEntityId: string
+  parentFolderId?: string
 }
 
 export interface ArchiveDocumentInput {
-    title: string;
-    description?: string;
-    documentNumber: string;
-    folderId: string;
-    filePath: string;
-    mimeType: string;
-    fileSize: number;
-    tags?: string[];
-    metadata?: Record<string, unknown>;
+  title: string
+  description?: string
+  documentNumber: string
+  folderId: string
+  filePath: string
+  mimeType: string
+  fileSize: number
+  tags?: string[]
+  metadata?: Record<string, unknown>
 }
 
 export interface ArchiveSearchParams {
-    query?: string;
-    folderId?: string;
-    hierarchyEntityId?: string;
-    tags?: string[];
-    fromDate?: Date;
-    toDate?: Date;
-    page?: number;
-    pageSize?: number;
+  query?: string
+  folderId?: string
+  hierarchyEntityId?: string
+  tags?: string[]
+  fromDate?: Date
+  toDate?: Date
+  page?: number
+  pageSize?: number
 }
 
-// ============================================
-// Archive Folder Operations
-// ============================================
+type ArchiveFolderRecord = {
+  id: string
+  name: string
+  code: string
+  description?: string | null
+  hierarchyEntityId: string
+  parentFolderId: string | null
+  createdAt: Date
+  updatedAt: Date
+}
 
-/**
- * Create an archive folder
- */
-export async function createArchiveFolder(
-    input: ArchiveFolderInput,
-    userId: string
+type ArchiveDocumentVersionRecord = {
+  version: number
+  filePath: string
+  fileSize: number
+  mimeType: string
+  uploadedById: string
+  changes: string | null
+  createdAt: Date
+}
+
+type ArchiveDocumentRecord = {
+  id: string
+  title: string
+  description?: string | null
+  documentNumber: string
+  folderId: string
+  filePath: string
+  mimeType: string
+  fileSize: number
+  tags: string[]
+  metadata?: Record<string, unknown> | null
+  status: string
+  archivedAt?: Date | null
+  createdAt: Date
+  updatedAt: Date
+  versions: ArchiveDocumentVersionRecord[]
+}
+
+function now(): Date {
+  return new Date()
+}
+
+function createId(prefix: string): string {
+  return `${prefix}_${randomUUID()}`
+}
+
+async function resolveHierarchyEntity(hierarchyEntityId: string) {
+  const breadcrumb = await getEntityBreadcrumb(hierarchyEntityId).catch(() => [])
+  return breadcrumb.at(-1) ?? null
+}
+
+function buildFolderView(
+  folder: ArchiveFolderRecord,
+  childCount: number,
+  documentCount: number,
+  hierarchyEntity: Awaited<ReturnType<typeof resolveHierarchyEntity>>,
 ) {
-    const folder = await prisma.archiveFolder.create({
-        data: {
-            name: input.name,
-            code: input.code,
-            description: input.description,
-            hierarchyEntityId: input.hierarchyEntityId,
-            parentFolderId: input.parentFolderId || null,
-        },
-    });
-
-    await createAuditLog({
-        action: 'CREATE',
-        entityType: 'ARCHIVE_FOLDER',
-        entityId: folder.id,
-        userId,
-        details: {
-            name: input.name,
-            code: input.code,
-            hierarchyEntityId: input.hierarchyEntityId,
-        },
-        hierarchyEntityId: input.hierarchyEntityId,
-        hierarchyEntityType: 'ARCHIVE_FOLDER',
-    });
-
-    return folder;
-}
-
-/**
- * Get archive folders with hierarchy scope filtering
- */
-export async function getArchiveFolders(
-    user: RBACUser,
-    parentFolderId?: string,
-    hierarchyEntityId?: string
-) {
-    const scopeFilter = await getDataScopeFilter(user);
-
-    const where: Record<string, unknown> = {};
-
-    if (parentFolderId) {
-        where.parentFolderId = parentFolderId;
-    } else {
-        where.parentFolderId = null; // root folders only
-    }
-
-    if (hierarchyEntityId) {
-        where.hierarchyEntityId = hierarchyEntityId;
-    } else if ((scopeFilter as any).parentId) {
-        where.hierarchyEntityId = { in: (scopeFilter as any).parentId };
-    }
-
-    return prisma.archiveFolder.findMany({
-        where: where as any,
-        include: {
-            _count: {
-                select: {
-                    documents: true,
-                    childFolders: true,
-                },
-            },
-            hierarchyEntity: {
-                select: { id: true, name: true, type: true },
-            },
-        },
-        orderBy: { name: 'asc' },
-    });
-}
-
-/**
- * Get archive folder by ID
- */
-export async function getArchiveFolderById(folderId: string, user: RBACUser) {
-    const folder = await prisma.archiveFolder.findUnique({
-        where: { id: folderId },
-        include: {
-            childFolders: {
-                include: {
-                    _count: { select: { documents: true, childFolders: true } },
-                },
-                orderBy: { name: 'asc' },
-            },
-            documents: {
-                orderBy: { createdAt: 'desc' },
-                take: 50,
-            },
-            hierarchyEntity: {
-                select: { id: true, name: true, type: true },
-            },
-        },
-    });
-
-    if (!folder) return null;
-
-    // Check hierarchy scope access
-    const hasAccess = await hasHierarchyScopeAccess(user, folder.hierarchyEntityId);
-    if (!hasAccess && user.role !== 'SUPER_ADMIN') {
-        return null;
-    }
-
-    return folder;
-}
-
-/**
- * Update an archive folder
- */
-export async function updateArchiveFolder(
-    folderId: string,
-    data: { name?: string; description?: string; parentFolderId?: string },
-    userId: string
-) {
-    const folder = await prisma.archiveFolder.update({
-        where: { id: folderId },
-        data,
-    });
-
-    await createAuditLog({
-        action: 'UPDATE',
-        entityType: 'ARCHIVE_FOLDER',
-        entityId: folderId,
-        userId,
-        details: data,
-        hierarchyEntityId: folder.hierarchyEntityId,
-        hierarchyEntityType: 'ARCHIVE_FOLDER',
-    });
-
-    return folder;
-}
-
-/**
- * Delete an archive folder (only if empty)
- */
-export async function deleteArchiveFolder(folderId: string, userId: string) {
-    const folder = await prisma.archiveFolder.findUnique({
-        where: { id: folderId },
-        include: {
-            _count: { select: { documents: true, childFolders: true } },
-        },
-    });
-
-    if (!folder) {
-        throw new Error('المجلد غير موجود');
-    }
-
-    if (folder._count.documents > 0 || folder._count.childFolders > 0) {
-        throw new Error('لا يمكن حذف مجلد غير فارغ. قم بنقل أو حذف المحتويات أولاً');
-    }
-
-    await prisma.archiveFolder.delete({ where: { id: folderId } });
-
-    await createAuditLog({
-        action: 'DELETE',
-        entityType: 'ARCHIVE_FOLDER',
-        entityId: folderId,
-        userId,
-        details: { name: folder.name, code: folder.code },
-        hierarchyEntityId: folder.hierarchyEntityId,
-        hierarchyEntityType: 'ARCHIVE_FOLDER',
-    });
-
-    return { success: true, message: 'تم حذف المجلد بنجاح' };
-}
-
-// ============================================
-// Archive Document Operations
-// ============================================
-
-/**
- * Create an archive document
- */
-export async function createArchiveDocument(
-    input: ArchiveDocumentInput,
-    userId: string,
-    uploadedById?: string
-) {
-    const folder = await prisma.archiveFolder.findUnique({
-        where: { id: input.folderId },
-        select: { hierarchyEntityId: true },
-    });
-
-    if (!folder) {
-        throw new Error('المجلد غير موجود');
-    }
-
-    const document = await prisma.archiveDocument.create({
-        data: {
-            title: input.title,
-            description: input.description,
-            documentNumber: input.documentNumber,
-            folderId: input.folderId,
-            filePath: input.filePath,
-            mimeType: input.mimeType,
-            fileSize: input.fileSize,
-            tags: input.tags || [],
-            metadata: (input.metadata || undefined) as any,
-            versions: {
-                create: {
-                    version: 1,
-                    filePath: input.filePath,
-                    fileSize: input.fileSize,
-                    mimeType: input.mimeType,
-                    uploadedById: uploadedById || userId,
-                    changes: 'النسخة الأصلية',
-                },
-            },
-        },
-        include: {
-            versions: {
-                orderBy: { version: 'desc' },
-                take: 1,
-            },
-        },
-    });
-
-    await createAuditLog({
-        action: 'CREATE',
-        entityType: 'ARCHIVE_DOCUMENT',
-        entityId: document.id,
-        userId,
-        details: {
-            title: input.title,
-            documentNumber: input.documentNumber,
-            folderId: input.folderId,
-            fileSize: input.fileSize,
-        },
-        hierarchyEntityId: folder.hierarchyEntityId,
-        hierarchyEntityType: 'ARCHIVE_DOCUMENT',
-    });
-
-    return document;
-}
-
-/**
- * Get documents with search and pagination
- */
-export async function getArchiveDocuments(
-    params: ArchiveSearchParams,
-    user: RBACUser
-) {
-    const scopeFilter = await getDataScopeFilter(user);
-    const where: Record<string, unknown> = {};
-
-    if (params.query) {
-        where.OR = [
-            { title: { contains: params.query, mode: 'insensitive' } },
-            { documentNumber: { contains: params.query, mode: 'insensitive' } },
-            { description: { contains: params.query, mode: 'insensitive' } },
-        ];
-    }
-
-    if (params.folderId) {
-        where.folderId = params.folderId;
-    }
-
-    if (params.tags && params.tags.length > 0) {
-        where.tags = { hasSome: params.tags };
-    }
-
-    if (params.fromDate || params.toDate) {
-        where.createdAt = {};
-        if (params.fromDate) (where.createdAt as Record<string, unknown>).gte = params.fromDate;
-        if (params.toDate) (where.createdAt as Record<string, unknown>).lte = params.toDate;
-    }
-
-    // Hierarchy scope filter
-    if ((scopeFilter as any).parentId) {
-        where.folder = {
-            hierarchyEntityId: { in: (scopeFilter as any).parentId },
-        };
-    }
-
-    const page = params.page || 1;
-    const pageSize = params.pageSize || 20;
-    const skip = (page - 1) * pageSize;
-
-    const [data, total] = await Promise.all([
-        prisma.archiveDocument.findMany({
-            where: where as any,
-            orderBy: { createdAt: 'desc' },
-            skip,
-            take: pageSize,
-            include: {
-                folder: {
-                    select: {
-                        id: true,
-                        name: true,
-                        hierarchyEntity: {
-                            select: { id: true, name: true, type: true },
-                        },
-                    },
-                },
-                versions: {
-                    orderBy: { version: 'desc' },
-                    take: 1,
-                    include: {
-                        uploadedBy: { select: { id: true, username: true, fullName: true } },
-                    },
-                },
-            },
-        }),
-        prisma.archiveDocument.count({ where: where as any }),
-    ]);
-
-    return {
-        data,
-        total,
-        page,
-        pageSize,
-        totalPages: Math.ceil(total / pageSize),
-    };
-}
-
-/**
- * Get document by ID
- */
-export async function getArchiveDocumentById(documentId: string, user: RBACUser) {
-    const document = await prisma.archiveDocument.findUnique({
-        where: { id: documentId },
-        include: {
-            folder: {
-                select: {
-                    id: true,
-                    name: true,
-                    hierarchyEntityId: true,
-                    hierarchyEntity: {
-                        select: { id: true, name: true, type: true },
-                    },
-                },
-            },
-            versions: {
-                orderBy: { version: 'desc' },
-                include: {
-                    uploadedBy: { select: { id: true, username: true, fullName: true } },
-                },
-            },
-        },
-    });
-
-    if (!document) return null;
-
-    // Check hierarchy scope access
-    const hasAccess = await hasHierarchyScopeAccess(user, document.folder.hierarchyEntityId);
-    if (!hasAccess && user.role !== 'SUPER_ADMIN') {
-        return null;
-    }
-
-    return document;
-}
-
-/**
- * Add a new version to a document
- */
-export async function addDocumentVersion(
-    documentId: string,
-    data: {
-        filePath: string;
-        fileSize: number;
-        mimeType: string;
-        changes?: string;
+  return {
+    ...folder,
+    _count: {
+      documents: documentCount,
+      childFolders: childCount,
     },
-    userId: string
+    hierarchyEntity,
+  }
+}
+
+function buildDocumentView(
+  document: ArchiveDocumentRecord,
+  folder: ArchiveFolderRecord,
+  hierarchyEntity: Awaited<ReturnType<typeof resolveHierarchyEntity>>,
 ) {
-    const document = await prisma.archiveDocument.findUnique({
-        where: { id: documentId },
-        select: {
-            id: true,
-            title: true,
-            folder: { select: { hierarchyEntityId: true } },
+  return {
+    ...document,
+    folder: {
+      id: folder.id,
+      name: folder.name,
+      hierarchyEntityId: folder.hierarchyEntityId,
+      hierarchyEntity,
+    },
+    versions: document.versions
+      .slice()
+      .sort((a, b) => b.version - a.version)
+      .map((version) => ({
+        ...version,
+        uploadedBy: {
+          id: version.uploadedById,
+          username: version.uploadedById,
+          fullName: version.uploadedById,
         },
-    });
-
-    if (!document) {
-        throw new Error('الوثيقة غير موجودة');
-    }
-
-    const lastVersion = await prisma.documentVersion.findFirst({
-        where: { documentId },
-        orderBy: { version: 'desc' },
-        select: { version: true },
-    });
-
-    const newVersion = (lastVersion?.version || 0) + 1;
-
-    const version = await prisma.documentVersion.create({
-        data: {
-            documentId,
-            version: newVersion,
-            filePath: data.filePath,
-            fileSize: data.fileSize,
-            mimeType: data.mimeType,
-            changes: data.changes || null,
-            uploadedById: userId,
-        },
-    });
-
-    // Update document's file path to point to latest version
-    await prisma.archiveDocument.update({
-        where: { id: documentId },
-        data: {
-            filePath: data.filePath,
-            fileSize: data.fileSize,
-            mimeType: data.mimeType,
-        },
-    });
-
-    await createAuditLog({
-        action: 'UPDATE',
-        entityType: 'ARCHIVE_DOCUMENT',
-        entityId: documentId,
-        userId,
-        details: {
-            action: 'NEW_VERSION',
-            version: newVersion,
-            changes: data.changes,
-        },
-        hierarchyEntityId: document.folder.hierarchyEntityId,
-        hierarchyEntityType: 'ARCHIVE_DOCUMENT',
-    });
-
-    return version;
+      })),
+  }
 }
 
-/**
- * Archive a document (soft-delete via workflow)
- */
+async function folderMatchesScope(folder: ArchiveFolderRecord, user: RBACUser, hierarchyEntityId?: string): Promise<boolean> {
+  if (user.role === 'SUPER_ADMIN') return true
+  if (hierarchyEntityId) return folder.hierarchyEntityId === hierarchyEntityId
+  return hasHierarchyScopeAccess(user, folder.hierarchyEntityId)
+}
+
+async function documentMatchesScope(document: ArchiveDocumentRecord, user: RBACUser, hierarchyEntityId?: string): Promise<boolean> {
+  const folder = await import('@/lib/prisma').then(({ prisma }) =>
+    prisma.archiveFolder.findUnique({ where: { id: document.folderId } }),
+  )
+  if (!folder) return false
+  return folderMatchesScope(folder as ArchiveFolderRecord, user, hierarchyEntityId)
+}
+
+export async function createArchiveFolder(input: ArchiveFolderInput, userId: string) {
+  const folder = await import('@/lib/prisma').then(({ prisma }) =>
+    prisma.archiveFolder.create({
+      data: {
+        id: createId('af'),
+        name: input.name,
+        code: input.code,
+        description: input.description ?? null,
+        hierarchyEntityId: input.hierarchyEntityId,
+        parentFolderId: input.parentFolderId || null,
+      },
+    }),
+  )
+
+  await createAuditLog({
+    action: 'CREATE',
+    entityType: 'ARCHIVE_FOLDER',
+    entityId: folder.id,
+    userId,
+    details: {
+      name: input.name,
+      code: input.code,
+      hierarchyEntityId: input.hierarchyEntityId,
+    },
+    hierarchyEntityId: input.hierarchyEntityId,
+    hierarchyEntityType: 'ARCHIVE_FOLDER',
+  })
+
+  return folder
+}
+
+export async function getArchiveFolders(user: RBACUser, parentFolderId?: string, hierarchyEntityId?: string) {
+  const { prisma } = await import('@/lib/prisma')
+  const folders = await prisma.archiveFolder.findMany({
+    where: {
+      ...(parentFolderId !== undefined ? { parentFolderId } : { parentFolderId: null }),
+    },
+    orderBy: { name: 'asc' },
+  })
+
+  const scopedFolders: ArchiveFolderRecord[] = []
+  for (const folder of folders) {
+    if (await folderMatchesScope(folder as ArchiveFolderRecord, user, hierarchyEntityId)) {
+      scopedFolders.push(folder as ArchiveFolderRecord)
+    }
+  }
+
+  return Promise.all(
+    scopedFolders.map(async (folder) => {
+      const childCount = await prisma.archiveFolder.count({ where: { parentFolderId: folder.id } })
+      const documentCount = await prisma.archiveDocument.count({ where: { folderId: folder.id } })
+      const hierarchyEntity = await resolveHierarchyEntity(folder.hierarchyEntityId)
+      return buildFolderView(folder, childCount, documentCount, hierarchyEntity)
+    }),
+  )
+}
+
+export async function getArchiveFolderById(folderId: string, user: RBACUser) {
+  const { prisma } = await import('@/lib/prisma')
+  const folder = await prisma.archiveFolder.findUnique({ where: { id: folderId } })
+  if (!folder) return null
+  if (!(await folderMatchesScope(folder as ArchiveFolderRecord, user))) return null
+
+  const childFolders = await prisma.archiveFolder.findMany({
+    where: { parentFolderId: folder.id },
+    orderBy: { name: 'asc' },
+  })
+
+  const documents = await prisma.archiveDocument.findMany({
+    where: { folderId: folder.id },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+    include: {
+      versions: true,
+    },
+  })
+
+  const hierarchyEntity = await resolveHierarchyEntity(folder.hierarchyEntityId)
+
+  return {
+    ...buildFolderView(folder as ArchiveFolderRecord, childFolders.length, documents.length, hierarchyEntity),
+    childFolders: await Promise.all(
+      childFolders.map(async (child) => {
+        const childHierarchyEntity = await resolveHierarchyEntity(child.hierarchyEntityId)
+        const childDocuments = await prisma.archiveDocument.count({ where: { folderId: child.id } })
+        const childChildren = await prisma.archiveFolder.count({ where: { parentFolderId: child.id } })
+        return buildFolderView(child as ArchiveFolderRecord, childChildren, childDocuments, childHierarchyEntity)
+      }),
+    ),
+    documents: await Promise.all(
+      documents.map(async (document) => {
+        const folderHierarchyEntity = await resolveHierarchyEntity(folder.hierarchyEntityId)
+        return buildDocumentView(
+          {
+            ...document,
+            metadata: (document.metadata as Record<string, unknown> | null) ?? null,
+            tags: document.tags || [],
+            versions: document.versions.map((version) => ({
+              version: version.version,
+              filePath: version.filePath,
+              fileSize: version.fileSize,
+              mimeType: version.mimeType,
+              uploadedById: version.uploadedById,
+              changes: version.changes,
+              createdAt: version.createdAt,
+            })),
+          },
+          folder as ArchiveFolderRecord,
+          folderHierarchyEntity,
+        )
+      }),
+    ),
+  }
+}
+
+export async function updateArchiveFolder(
+  folderId: string,
+  data: { name?: string; description?: string; parentFolderId?: string },
+  userId: string,
+) {
+  const { prisma } = await import('@/lib/prisma')
+  const folder = await prisma.archiveFolder.update({
+    where: { id: folderId },
+    data: {
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.description !== undefined ? { description: data.description } : {}),
+      ...(data.parentFolderId !== undefined ? { parentFolderId: data.parentFolderId } : {}),
+    },
+  })
+
+  await createAuditLog({
+    action: 'UPDATE',
+    entityType: 'ARCHIVE_FOLDER',
+    entityId: folderId,
+    userId,
+    details: data,
+    hierarchyEntityId: folder.hierarchyEntityId,
+    hierarchyEntityType: 'ARCHIVE_FOLDER',
+  })
+
+  return folder
+}
+
+export async function deleteArchiveFolder(folderId: string, userId: string) {
+  const { prisma } = await import('@/lib/prisma')
+  const folder = await prisma.archiveFolder.findUnique({ where: { id: folderId } })
+  if (!folder) {
+    throw new Error('المجلد غير موجود')
+  }
+
+  const hasDocuments = await prisma.archiveDocument.count({ where: { folderId } })
+  const hasChildren = await prisma.archiveFolder.count({ where: { parentFolderId: folderId } })
+  if (hasDocuments || hasChildren) {
+    throw new Error('لا يمكن حذف مجلد غير فارغ. قم بنقل أو حذف المحتويات أولاً')
+  }
+
+  await prisma.archiveFolder.delete({ where: { id: folderId } })
+
+  await createAuditLog({
+    action: 'DELETE',
+    entityType: 'ARCHIVE_FOLDER',
+    entityId: folderId,
+    userId,
+    details: { name: folder.name, code: folder.code },
+    hierarchyEntityId: folder.hierarchyEntityId,
+    hierarchyEntityType: 'ARCHIVE_FOLDER',
+  })
+
+  return { success: true, message: 'تم حذف المجلد بنجاح' }
+}
+
+export async function createArchiveDocument(
+  input: ArchiveDocumentInput,
+  userId: string,
+  uploadedById?: string,
+) {
+  const { prisma } = await import('@/lib/prisma')
+  const folder = await prisma.archiveFolder.findUnique({ where: { id: input.folderId } })
+  if (!folder) {
+    throw new Error('المجلد غير موجود')
+  }
+
+  const document = await prisma.archiveDocument.create({
+    data: {
+      id: createId('ad'),
+      title: input.title,
+      description: input.description ?? null,
+      documentNumber: input.documentNumber,
+      folderId: input.folderId,
+      filePath: input.filePath,
+      mimeType: input.mimeType,
+      fileSize: input.fileSize,
+      tags: input.tags || [],
+      metadata: (input.metadata || null) as Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput,
+      versions: {
+        create: [
+          {
+            id: createId('adv'),
+            version: 1,
+            filePath: input.filePath,
+            fileSize: input.fileSize,
+            mimeType: input.mimeType,
+            uploadedById: uploadedById || userId,
+            changes: 'النسخة الأصلية',
+          },
+        ],
+      },
+    },
+    include: { versions: true },
+  })
+
+  await createAuditLog({
+    action: 'CREATE',
+    entityType: 'ARCHIVE_DOCUMENT',
+    entityId: document.id,
+    userId,
+    details: {
+      title: input.title,
+      documentNumber: input.documentNumber,
+      folderId: input.folderId,
+      fileSize: input.fileSize,
+    },
+    hierarchyEntityId: folder.hierarchyEntityId,
+    hierarchyEntityType: 'ARCHIVE_DOCUMENT',
+  })
+
+  return buildDocumentView(
+    {
+      ...document,
+      metadata: document.metadata as Record<string, unknown> | null,
+      tags: document.tags,
+      versions: document.versions.map((version) => ({
+        version: version.version,
+        filePath: version.filePath,
+        fileSize: version.fileSize,
+        mimeType: version.mimeType,
+        uploadedById: version.uploadedById,
+        changes: version.changes,
+        createdAt: version.createdAt,
+      })),
+    },
+    folder as ArchiveFolderRecord,
+    await resolveHierarchyEntity(folder.hierarchyEntityId),
+  )
+}
+
+export async function getArchiveDocuments(params: ArchiveSearchParams, user: RBACUser) {
+  const { prisma } = await import('@/lib/prisma')
+  const page = params.page || 1
+  const pageSize = params.pageSize || 20
+  const skip = (page - 1) * pageSize
+
+  const documents = await prisma.archiveDocument.findMany({
+    where: {
+      ...(params.folderId ? { folderId: params.folderId } : {}),
+      ...(params.tags && params.tags.length > 0 ? { tags: { hasSome: params.tags } } : {}),
+      ...(params.query
+        ? {
+            OR: [
+              { title: { contains: params.query, mode: 'insensitive' } },
+              { documentNumber: { contains: params.query, mode: 'insensitive' } },
+              { description: { contains: params.query, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+      ...(params.fromDate || params.toDate
+        ? {
+            createdAt: {
+              ...(params.fromDate ? { gte: params.fromDate } : {}),
+              ...(params.toDate ? { lte: params.toDate } : {}),
+            },
+          }
+        : {}),
+    },
+    include: {
+      versions: true,
+      folder: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  })
+
+  const filtered: typeof documents = []
+
+  for (const document of documents) {
+    if (!(await documentMatchesScope(document as ArchiveDocumentRecord, user, params.hierarchyEntityId))) continue
+    filtered.push(document)
+  }
+
+  const data = await Promise.all(
+    filtered.slice(skip, skip + pageSize).map(async (document) => {
+      const folder = document.folder as unknown as ArchiveFolderRecord
+      const hierarchyEntity = await resolveHierarchyEntity(folder.hierarchyEntityId)
+      return buildDocumentView(
+        {
+          id: document.id,
+          title: document.title,
+          description: document.description,
+          documentNumber: document.documentNumber,
+          folderId: document.folderId,
+          filePath: document.filePath,
+          mimeType: document.mimeType,
+          fileSize: document.fileSize,
+          tags: document.tags,
+          metadata: document.metadata as Record<string, unknown> | null,
+          status: document.status,
+          archivedAt: document.archivedAt,
+          createdAt: document.createdAt,
+          updatedAt: document.updatedAt,
+          versions: document.versions.map((version) => ({
+            version: version.version,
+            filePath: version.filePath,
+            fileSize: version.fileSize,
+            mimeType: version.mimeType,
+            uploadedById: version.uploadedById,
+            changes: version.changes,
+            createdAt: version.createdAt,
+          })),
+        },
+        folder,
+        hierarchyEntity,
+      )
+    }),
+  )
+
+  return {
+    data,
+    total: filtered.length,
+    page,
+    pageSize,
+    totalPages: Math.ceil(filtered.length / pageSize),
+  }
+}
+
+export async function getArchiveDocumentById(documentId: string, user: RBACUser) {
+  const { prisma } = await import('@/lib/prisma')
+  const document = await prisma.archiveDocument.findUnique({
+    where: { id: documentId },
+    include: { versions: true, folder: true },
+  })
+  if (!document) return null
+
+  const folder = document.folder as unknown as ArchiveFolderRecord
+  const hasAccess = await hasHierarchyScopeAccess(user, folder.hierarchyEntityId)
+  if (!hasAccess && user.role !== 'SUPER_ADMIN') {
+    return null
+  }
+
+  return buildDocumentView(
+    {
+      id: document.id,
+      title: document.title,
+      description: document.description,
+      documentNumber: document.documentNumber,
+      folderId: document.folderId,
+      filePath: document.filePath,
+      mimeType: document.mimeType,
+      fileSize: document.fileSize,
+      tags: document.tags,
+      metadata: document.metadata as Record<string, unknown> | null,
+      status: document.status,
+      archivedAt: document.archivedAt,
+      createdAt: document.createdAt,
+      updatedAt: document.updatedAt,
+      versions: document.versions.map((version) => ({
+        version: version.version,
+        filePath: version.filePath,
+        fileSize: version.fileSize,
+        mimeType: version.mimeType,
+        uploadedById: version.uploadedById,
+        changes: version.changes,
+        createdAt: version.createdAt,
+      })),
+    },
+    folder,
+    await resolveHierarchyEntity(folder.hierarchyEntityId),
+  )
+}
+
+export async function addDocumentVersion(
+  documentId: string,
+  data: {
+    filePath: string
+    fileSize: number
+    mimeType: string
+    changes?: string
+  },
+  userId: string,
+) {
+  const { prisma } = await import('@/lib/prisma')
+  const document = await prisma.archiveDocument.findUnique({ where: { id: documentId } })
+  if (!document) {
+    throw new Error('الوثيقة غير موجودة')
+  }
+
+  const lastVersion = await prisma.archiveDocumentVersion.findFirst({
+    where: { documentId },
+    orderBy: { version: 'desc' },
+  })
+
+  const newVersion = (lastVersion?.version || 0) + 1
+  await prisma.archiveDocumentVersion.create({
+    data: {
+      id: createId('adv'),
+      documentId,
+      version: newVersion,
+      filePath: data.filePath,
+      fileSize: data.fileSize,
+      mimeType: data.mimeType,
+      uploadedById: userId,
+      changes: data.changes || null,
+    },
+  })
+
+  await prisma.archiveDocument.update({
+    where: { id: documentId },
+    data: {
+      filePath: data.filePath,
+      fileSize: data.fileSize,
+      mimeType: data.mimeType,
+      updatedAt: now(),
+    },
+  })
+
+  const folder = await prisma.archiveFolder.findUnique({ where: { id: document.folderId } })
+  if (folder) {
+    await createAuditLog({
+      action: 'UPDATE',
+      entityType: 'ARCHIVE_DOCUMENT',
+      entityId: documentId,
+      userId,
+      details: {
+        action: 'NEW_VERSION',
+        version: newVersion,
+        changes: data.changes,
+      },
+      hierarchyEntityId: folder.hierarchyEntityId,
+      hierarchyEntityType: 'ARCHIVE_DOCUMENT',
+    })
+  }
+
+  return {
+    version: newVersion,
+    filePath: data.filePath,
+    fileSize: data.fileSize,
+    mimeType: data.mimeType,
+    uploadedById: userId,
+    changes: data.changes || null,
+    createdAt: now(),
+  } satisfies ArchiveDocumentVersionRecord
+}
+
 export async function archiveDocument(documentId: string, userId: string, hierarchyEntityId?: string) {
-    const result = await executeTransition({
-        entityType: 'ARCHIVE',
-        entityId: documentId,
-        action: 'ARCHIVE',
-        fromStatus: 'ACTIVE',
-        toStatus: 'ARCHIVED',
-        userId,
-        hierarchyEntityId,
-    });
+  const { prisma } = await import('@/lib/prisma')
+  const document = await prisma.archiveDocument.update({
+    where: { id: documentId },
+    data: {
+      status: 'ARCHIVED',
+      archivedAt: now(),
+    },
+  })
 
-    return result;
-}
-
-/**
- * Delete a document permanently
- */
-export async function deleteArchiveDocument(documentId: string, userId: string) {
-    const document = await prisma.archiveDocument.findUnique({
-        where: { id: documentId },
-        select: {
-            title: true,
-            folder: { select: { hierarchyEntityId: true } },
-        },
-    });
-
-    if (!document) {
-        throw new Error('الوثيقة غير موجودة');
-    }
-
-    await prisma.archiveDocument.delete({ where: { id: documentId } });
-
+  const folder = await prisma.archiveFolder.findUnique({ where: { id: document.folderId } })
+  if (folder) {
     await createAuditLog({
-        action: 'DELETE',
-        entityType: 'ARCHIVE_DOCUMENT',
-        entityId: documentId,
-        userId,
-        details: { title: document.title },
-        hierarchyEntityId: document.folder.hierarchyEntityId,
-        hierarchyEntityType: 'ARCHIVE_DOCUMENT',
-    });
+      action: 'ARCHIVE',
+      entityType: 'ARCHIVE_DOCUMENT',
+      entityId: documentId,
+      userId,
+      details: { status: 'ARCHIVED' },
+      hierarchyEntityId: hierarchyEntityId || folder.hierarchyEntityId,
+      hierarchyEntityType: 'ARCHIVE_DOCUMENT',
+    })
+  }
 
-    return { success: true, message: 'تم حذف الوثيقة بنجاح' };
+  return { success: true, documentId }
 }
 
-// ============================================
-// Archive Statistics
-// ============================================
+export async function deleteArchiveDocument(documentId: string, userId: string) {
+  const { prisma } = await import('@/lib/prisma')
+  const document = await prisma.archiveDocument.findUnique({ where: { id: documentId } })
+  if (!document) {
+    throw new Error('الوثيقة غير موجودة')
+  }
 
-/**
- * Get archive statistics for a hierarchy entity
- */
+  await prisma.archiveDocument.delete({ where: { id: documentId } })
+
+  const folder = await prisma.archiveFolder.findUnique({ where: { id: document.folderId } })
+  if (folder) {
+    await createAuditLog({
+      action: 'DELETE',
+      entityType: 'ARCHIVE_DOCUMENT',
+      entityId: documentId,
+      userId,
+      details: { title: document.title },
+      hierarchyEntityId: folder.hierarchyEntityId,
+      hierarchyEntityType: 'ARCHIVE_DOCUMENT',
+    })
+  }
+
+  return { success: true, message: 'تم حذف الوثيقة بنجاح' }
+}
+
 export async function getArchiveStatistics(hierarchyEntityId: string) {
-    const folderCount = await prisma.archiveFolder.count({
-        where: { hierarchyEntityId },
-    });
+  const { prisma } = await import('@/lib/prisma')
+  const folders = await prisma.archiveFolder.findMany({
+    where: { hierarchyEntityId },
+  })
+  const folderIds = folders.map((folder) => folder.id)
+  const documents = await prisma.archiveDocument.findMany({
+    where: { folderId: { in: folderIds } },
+    include: { folder: true },
+  })
 
-    const documentCount = await prisma.archiveDocument.count({
-        where: {
-            folder: { hierarchyEntityId },
-        },
-    });
+  const recentDocuments = documents
+    .slice()
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, 10)
+    .map((document) => ({
+      id: document.id,
+      title: document.title,
+      documentNumber: document.documentNumber,
+      createdAt: document.createdAt,
+      folder: {
+        name: document.folder.name,
+      },
+    }))
 
-    const totalSize = await prisma.archiveDocument.aggregate({
-        where: {
-            folder: { hierarchyEntityId },
-        },
-        _sum: { fileSize: true },
-    });
-
-    const recentDocuments = await prisma.archiveDocument.findMany({
-        where: {
-            folder: { hierarchyEntityId },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 10,
-        select: {
-            id: true,
-            title: true,
-            documentNumber: true,
-            createdAt: true,
-            folder: { select: { name: true } },
-        },
-    });
-
-    return {
-        hierarchyEntityId,
-        folderCount,
-        documentCount,
-        totalSizeBytes: totalSize._sum.fileSize || 0,
-        recentDocuments,
-    };
+  return {
+    hierarchyEntityId,
+    folderCount: folders.length,
+    documentCount: documents.length,
+    totalSizeBytes: documents.reduce((sum, document) => sum + document.fileSize, 0),
+    recentDocuments,
+  }
 }

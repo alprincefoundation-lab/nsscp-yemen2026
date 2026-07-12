@@ -11,11 +11,17 @@ export async function GET(request: NextRequest) {
 
         const where: Record<string, unknown> = withScope({}, scope);
 
-        const reports = await prisma.incident.findMany({
+        const reports = await prisma.report.findMany({
             where: where as any,
             orderBy: { createdAt: 'desc' },
         });
-        return NextResponse.json({ success: true, reports });
+        return NextResponse.json({
+            success: true,
+            reports: reports.map((report) => ({
+                ...report,
+                period: report.department,
+            })),
+        });
     } catch (error) {
         console.error('Fetch Strategic Reports Error:', error);
         return NextResponse.json({ error: 'حدث خطأ أثناء جلب التقارير الاستراتيجية والختامية' }, { status: 500 });
@@ -36,14 +42,14 @@ export async function POST(request: NextRequest) {
         }
 
         const incidentNumber = `STR-${Date.now()}`;
-        const report = await prisma.incident.create({
+        const report = await prisma.report.create({
             data: {
+                id: incidentNumber,
                 title,
                 description: summary,
-                type: 'OTHER',
                 status: 'REPORTED',
-                dateTime: new Date(),
-                incidentNumber,
+                priority: 'HIGH',
+                department: period,
             },
         });
 
@@ -57,7 +63,14 @@ export async function POST(request: NextRequest) {
             userAgent: meta.userAgent,
         });
 
-        return NextResponse.json({ success: true, report }, { status: 201 });
+        return NextResponse.json({
+            success: true,
+            report: {
+                ...report,
+                period,
+                incidentNumber,
+            },
+        }, { status: 201 });
     } catch (error) {
         console.error('Create Strategic Report Error:', error);
         return NextResponse.json({ error: 'حدث خطأ أثناء إضافة التقرير الاستراتيجي' }, { status: 500 });

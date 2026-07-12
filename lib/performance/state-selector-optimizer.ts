@@ -156,7 +156,6 @@ export function useStateSelector<TState, TSelected>(
   equalityFn?: (a: TSelected, b: TSelected) => boolean,
 ): TSelected {
   // Create a stable selector instance — useMemo is fine because createSelector is pure
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const selectorInstance = useMemo(
     () => createSelector(selector, equalityFn),
     [],
@@ -220,10 +219,17 @@ export function createSelectorBatch<TState, TSelectors extends Record<string, (s
   select: <K extends keyof TSelectors>(state: TState, key: K) => ReturnType<TSelectors[K]>;
   selectAll: (state: TState) => { [K in keyof TSelectors]: ReturnType<TSelectors[K]> };
 } {
-  const instances = new Map<string, ReturnType<typeof createSelector>>();
+  const instances = new Map<
+    string,
+    {
+      select: (state: TState) => unknown;
+      getLastValue: () => unknown;
+      getMetrics: () => SelectorMetrics | null;
+    }
+  >();
 
   for (const [key, selector] of Object.entries(selectors)) {
-    instances.set(key, createSelector(selector));
+    instances.set(key, createSelector<TState, unknown>(selector as (state: TState) => unknown));
   }
 
   return {

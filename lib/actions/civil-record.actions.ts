@@ -8,6 +8,7 @@
  */
 
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/index";
 import { createAuditLog } from "@/lib/core/audit-engine";
@@ -31,7 +32,7 @@ export const civilRecordSchema = z.object({
   address: z.string().max(200).optional(),
   issuingAuthority: z.string().max(100).optional(),
   notes: z.string().max(500).optional(),
-  hierarchyEntityId: z.string().uuid().optional(),
+  hierarchyEntityId: z.string().min(1).optional(),
 });
 
 export type CivilRecordInput = z.infer<typeof civilRecordSchema>;
@@ -53,43 +54,65 @@ export async function createCivilRecord(data: CivilRecordInput) {
 
   // Duplicate ID check
   if (parsed.idNumber) {
-    const existing = await prisma.civilRecord.findFirst({
-      where: { idNumber: parsed.idNumber },
+    const existing = await prisma.dataRecord.findFirst({
+      where: {
+        recordType: parsed.recordType,
+      },
+      select: {
+        data: true,
+      },
     });
-    if (existing) throw new Error("رقم الهوية موجود مسبقاً في النظام");
+    const alreadyExists =
+      !!existing &&
+      typeof existing.data === "object" &&
+      existing.data !== null &&
+      "idNumber" in existing.data &&
+      (existing.data as Record<string, unknown>).idNumber === parsed.idNumber;
+    if (alreadyExists) throw new Error("رقم الهوية موجود مسبقاً في النظام");
   }
 
-  const record = await prisma.civilRecord.create({
+  const level6UnitId = parsed.hierarchyEntityId || user.hierarchyEntityId;
+  if (!level6UnitId) {
+    throw new Error("لا يمكن إنشاء السجل بدون نطاق هرمي صالح");
+  }
+
+  const record = await prisma.dataRecord.create({
     data: {
+      id: `CR-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+      level6UnitId,
       recordType: parsed.recordType,
-      fullName: parsed.fullName,
-      dateOfBirth: parsed.dateOfBirth ? new Date(parsed.dateOfBirth) : null,
-      gender: parsed.gender ?? null,
-      nationality: parsed.nationality ?? null,
-      idNumber: parsed.idNumber ?? null,
-      fatherName: parsed.fatherName ?? null,
-      motherName: parsed.motherName ?? null,
-      placeOfBirth: parsed.placeOfBirth ?? null,
-      address: parsed.address ?? null,
-      issuingAuthority: parsed.issuingAuthority ?? null,
-      notes: parsed.notes ?? null,
-      hierarchyEntityId: parsed.hierarchyEntityId ?? null,
-      registeredById: user.id,
+      data: {
+        fullName: parsed.fullName,
+        dateOfBirth: parsed.dateOfBirth ?? null,
+        gender: parsed.gender ?? null,
+        nationality: parsed.nationality ?? null,
+        idNumber: parsed.idNumber ?? null,
+        fatherName: parsed.fatherName ?? null,
+        motherName: parsed.motherName ?? null,
+        placeOfBirth: parsed.placeOfBirth ?? null,
+        address: parsed.address ?? null,
+        issuingAuthority: parsed.issuingAuthority ?? null,
+        notes: parsed.notes ?? null,
+        hierarchyEntityId: parsed.hierarchyEntityId ?? null,
+        registeredById: user.id,
+      },
       status: "ACTIVE",
+      securityLevel: "internal",
+      updatedAt: new Date(),
     },
   });
 
   // Audit log
   await createAuditLog({
     action: "CREATE",
-    entityType: "CIVIL_RECORD",
+    entityType: "DataRecord",
     entityId: record.id,
     userId: user.id,
     details: { recordType: parsed.recordType, fullName: parsed.fullName },
-    hierarchyEntityId: record.hierarchyEntityId,
+    hierarchyEntityId: level6UnitId,
   });
 
-  return { success: true, data: { id: record.id, fullName: record.fullName } };
+  return { success: true, data: { id: record.id, fullName: parsed.fullName } };
 }
 
 // ─── Update Civil Record ───────────────────────────────────
@@ -107,33 +130,48 @@ export async function updateCivilRecord(
 
   const parsed = civilRecordSchema.partial().parse(data);
 
-  const record = await (prisma as any).civilRecord.update({
+  const existingRecord = await prisma.dataRecord.findUnique({
+    where: { id: recordId },
+    select: { data: true, level6UnitId: true },
+  });
+
+  if (!existingRecord) {
+    throw new Error("السجل غير موجود");
+  }
+
+  const nextData: Prisma.JsonObject =
+    typeof existingRecord.data === "object" && existingRecord.data !== null
+      ? { ...(existingRecord.data as Prisma.JsonObject) }
+      : {};
+
+  if (parsed.recordType !== undefined) nextData.recordType = parsed.recordType;
+  if (parsed.fullName !== undefined) nextData.fullName = parsed.fullName;
+  if (parsed.dateOfBirth !== undefined) nextData.dateOfBirth = parsed.dateOfBirth ?? null;
+  if (parsed.gender !== undefined) nextData.gender = parsed.gender ?? null;
+  if (parsed.nationality !== undefined) nextData.nationality = parsed.nationality ?? null;
+  if (parsed.idNumber !== undefined) nextData.idNumber = parsed.idNumber ?? null;
+  if (parsed.fatherName !== undefined) nextData.fatherName = parsed.fatherName ?? null;
+  if (parsed.motherName !== undefined) nextData.motherName = parsed.motherName ?? null;
+  if (parsed.placeOfBirth !== undefined) nextData.placeOfBirth = parsed.placeOfBirth ?? null;
+  if (parsed.address !== undefined) nextData.address = parsed.address ?? null;
+  if (parsed.issuingAuthority !== undefined) nextData.issuingAuthority = parsed.issuingAuthority ?? null;
+  if (parsed.notes !== undefined) nextData.notes = parsed.notes ?? null;
+
+  const record = await prisma.dataRecord.update({
     where: { id: recordId },
     data: {
-      ...(parsed.recordType && { recordType: parsed.recordType as any }),
-      ...(parsed.fullName && { fullName: parsed.fullName }),
-      ...(parsed.dateOfBirth !== undefined && {
-        dateOfBirth: parsed.dateOfBirth ? new Date(parsed.dateOfBirth) : null,
-      }),
-      ...(parsed.gender !== undefined && { gender: parsed.gender }),
-      ...(parsed.nationality !== undefined && { nationality: parsed.nationality }),
-      ...(parsed.idNumber !== undefined && { idNumber: parsed.idNumber }),
-      ...(parsed.fatherName !== undefined && { fatherName: parsed.fatherName }),
-      ...(parsed.motherName !== undefined && { motherName: parsed.motherName }),
-      ...(parsed.placeOfBirth !== undefined && { placeOfBirth: parsed.placeOfBirth }),
-      ...(parsed.address !== undefined && { address: parsed.address }),
-      ...(parsed.issuingAuthority !== undefined && { issuingAuthority: parsed.issuingAuthority }),
-      ...(parsed.notes !== undefined && { notes: parsed.notes }),
+      data: nextData,
+      updatedAt: new Date(),
     },
   });
 
   await createAuditLog({
     action: "UPDATE",
-    entityType: "CIVIL_RECORD",
+    entityType: "DataRecord",
     entityId: record.id,
     userId: user.id,
     details: { updatedFields: Object.keys(data) },
-    hierarchyEntityId: record.hierarchyEntityId,
+    hierarchyEntityId: existingRecord.level6UnitId,
   });
 
   return { success: true, data: { id: record.id } };

@@ -5,14 +5,6 @@ export type ServiceStatus = {
   latency?: number;
 };
 
-async function safeQuery<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
-  try {
-    return await fn();
-  } catch {
-    return fallback;
-  }
-}
-
 export async function getDatabaseStatus(): Promise<ServiceStatus> {
   const start = Date.now();
   try {
@@ -26,47 +18,47 @@ export async function getDatabaseStatus(): Promise<ServiceStatus> {
 export async function getSystemStats(dbOnline: boolean) {
   if (!dbOnline) {
     return {
-      totalUsers: 42,
-      activeUsers: 12,
-      totalCases: 156,
-      activeCases: 55,
-      totalAlerts: 60,
-      criticalAlerts: 12,
-      pendingCases: 39,
-      activeOperations: 5,
-      totalWanted: 89,
-      totalEvidence: 342,
-      totalArchive: 98,
+      totalUsers: 0,
+      activeUsers: 0,
+      totalCases: 0,
+      activeCases: 0,
+      totalAlerts: 0,
+      criticalAlerts: 0,
+      pendingCases: 0,
+      activeOperations: 0,
+      totalWanted: 0,
+      totalEvidence: 0,
+      totalArchive: 0,
     };
   }
 
   const [users, cases, wanted, evidence] = await Promise.all([
-    safeQuery(() => prisma.user.count(), 0),
-    safeQuery(() => prisma.case.count(), 0),
-    safeQuery(() => prisma.wantedPerson.count(), 0),
-    safeQuery(() => prisma.evidence.count(), 0),
+    prisma.officer.count(),
+    prisma.report.count(),
+    prisma.wantedPerson.count(),
+    prisma.dataRecord.count(),
   ]);
 
   return {
     totalUsers: users,
-    activeUsers: Math.floor(users * 0.3),
+    activeUsers: Math.min(users, Math.round(users * 0.3)),
     totalCases: cases,
-    activeCases: Math.floor(cases * 0.35),
-    totalAlerts: Math.floor(cases * 0.4),
-    criticalAlerts: Math.floor(cases * 0.08),
-    pendingCases: Math.floor(cases * 0.25),
-    activeOperations: Math.floor(Math.random() * 5) + 2,
+    activeCases: Math.round(cases * 0.35),
+    totalAlerts: Math.round(cases * 0.4),
+    criticalAlerts: Math.round(cases * 0.08),
+    pendingCases: Math.round(cases * 0.25),
+    activeOperations: Math.min(12, Math.max(0, Math.round((users + cases + wanted) / 50))),
     totalWanted: wanted,
     totalEvidence: evidence,
-    totalArchive: Math.floor((cases + wanted) * 0.4),
+    totalArchive: Math.round((cases + wanted) * 0.4),
   };
 }
 
 export async function getSystemLoad(apiLatency: number) {
   return {
-    cpu: Math.min(90, 20 + Math.random() * 30 + (apiLatency > 100 ? 20 : 0)),
-    memory: Math.min(90, 30 + Math.random() * 25),
-    network: Math.min(100, 10 + Math.random() * 20),
+    cpu: Math.min(90, 20 + Math.round(apiLatency / 4)),
+    memory: Math.min(90, 30 + Math.round(apiLatency / 6)),
+    network: Math.min(100, 10 + Math.round(apiLatency / 8)),
     apiLatency,
   };
 }

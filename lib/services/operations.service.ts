@@ -1,5 +1,59 @@
+import { Prisma } from '@prisma/client'
+import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/prisma'
-import { Operation, Incident } from '@prisma/client'
+
+type OfficerRef = { id: string; fullName?: string | null; rank?: string | null; department?: string | null }
+
+type OperationTimelineRecord = {
+  id: string
+  operationId: string
+  eventType: string
+  description: string
+  location?: string | null
+  createdBy: string
+  createdAt: Date
+}
+
+type IncidentTimelineRecord = {
+  id: string
+  incidentId: string
+  eventType: string
+  description: string
+  createdBy: string
+  createdAt: Date
+}
+
+async function getOfficerRef(id: string): Promise<OfficerRef | null> {
+  const officer = await prisma.officer.findUnique({
+    where: { id },
+    select: { id: true, name: true, rank: true, department: true },
+  })
+
+  return officer
+    ? { id: officer.id, fullName: officer.name, rank: officer.rank, department: officer.department }
+    : null
+}
+
+function sortTimeline<T extends { createdAt: Date }>(items: T[]) {
+  return items.slice().sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+}
+
+function buildOperationView(record: Prisma.OperationGetPayload<{ include: { timelines: true } }>) {
+  return {
+    ...record,
+    commander: { id: record.commanderId, fullName: record.commanderId },
+    department: { id: record.departmentId, name: record.departmentId },
+    timeline: sortTimeline(record.timelines),
+  }
+}
+
+function buildIncidentView(record: Prisma.IncidentGetPayload<{ include: { timelines: true } }>) {
+  return {
+    ...record,
+    department: { id: record.departmentId, name: record.departmentId },
+    timeline: sortTimeline(record.timelines),
+  }
+}
 
 export async function createOperation(data: {
   name: string
@@ -15,57 +69,62 @@ export async function createOperation(data: {
   district?: string
   priority: string
 }) {
-  const operation = await prisma.operation.create({
-    data: {
-      name: data.name,
-      code: data.code,
-      type: data.type,
-      commanderId: data.commanderId,
-      createdById: data.commanderId,
-      startDate: data.startDate,
-      endDate: data.endDate,
-      objectives: data.objectives,
-      departmentId: data.departmentId,
-      location: data.location,
-      province: data.province,
-      district: data.district,
-      priority: data.priority,
-      status: 'ACTIVE',
-    },
-    include: {
-      commander: true,
-      department: true,
-      timeline: true,
-    },
+  const operation = await prisma.$transaction(async (tx) => {
+    const created = await tx.operation.create({
+      data: {
+        id: `op_${randomUUID()}`,
+        name: data.name,
+        code: data.code,
+        type: data.type,
+        commanderId: data.commanderId,
+        createdById: data.commanderId,
+        startDate: data.startDate,
+        endDate: data.endDate ?? null,
+        objectives: data.objectives,
+        departmentId: data.departmentId,
+        location: data.location ?? null,
+        province: data.province ?? null,
+        district: data.district ?? null,
+        priority: data.priority,
+        status: 'ACTIVE',
+      },
+      include: { timelines: true },
+    })
+
+    await tx.auditLog.create({
+      data: {
+        action: 'CREATE',
+        entityType: 'OPERATION',
+        entityId: created.id,
+        officerId: data.commanderId,
+        details: {
+          name: data.name,
+          code: data.code,
+          type: data.type,
+        } as Prisma.InputJsonValue,
+      },
+    })
+
+    return created
   })
 
-  // Create audit log
-  await prisma.auditLog.create({
-    data: {
-      userId: data.commanderId,
-      action: 'CREATE',
-      resourceType: 'Operation',
-      resourceId: operation.id,
-    },
-  })
-
-  return operation
+  return buildOperationView(operation)
 }
 
 export async function getOperation(operationId: string) {
   const operation = await prisma.operation.findUnique({
     where: { id: operationId },
-    include: {
-      commander: true,
-      department: true,
-      createdByUser: true,
-      updatedByUser: true,
-      timeline: {
-        orderBy: { createdAt: 'desc' },
-      },
-    },
+    include: { timelines: true },
   })
-  return operation
+  if (!operation) return null
+
+  const commander = await getOfficerRef(operation.commanderId)
+  return {
+    ...buildOperationView(operation),
+    commander: commander || { id: operation.commanderId, fullName: operation.commanderId },
+    createdByUser: await getOfficerRef(operation.createdById),
+    updatedByUser: operation.updatedById ? await getOfficerRef(operation.updatedById) : null,
+  }
 }
 
 export async function listOperations(filters?: {
@@ -78,49 +137,54 @@ export async function listOperations(filters?: {
 }) {
   const operations = await prisma.operation.findMany({
     where: {
-      ...(filters?.departmentId && { departmentId: filters.departmentId }),
-      ...(filters?.commanderId && { commanderId: filters.commanderId }),
-      ...(filters?.status && { status: filters.status }),
-      ...(filters?.type && { type: filters.type }),
+      ...(filters?.departmentId ? { departmentId: filters.departmentId } : {}),
+      ...(filters?.commanderId ? { commanderId: filters.commanderId } : {}),
+      ...(filters?.status ? { status: filters.status } : {}),
+      ...(filters?.type ? { type: filters.type } : {}),
     },
-    include: {
-      commander: true,
-      department: true,
-    },
+    include: { timelines: true },
     orderBy: { startDate: 'desc' },
     skip: filters?.skip || 0,
     take: filters?.take || 50,
   })
-  return operations
+
+  return Promise.all(operations.map(buildOperationView))
 }
 
 export async function updateOperationStatus(
   operationId: string,
   status: string,
   updatedBy: string,
-  endDate?: Date
+  endDate?: Date,
 ) {
-  const operation = await prisma.operation.update({
-    where: { id: operationId },
-    data: {
-      status,
-      ...(endDate && { endDate }),
-      updatedById: updatedBy,
-    },
+  const operation = await prisma.$transaction(async (tx) => {
+    const updated = await tx.operation.update({
+      where: { id: operationId },
+      data: {
+        status,
+        updatedById: updatedBy,
+        ...(endDate ? { endDate } : {}),
+      },
+      include: { timelines: true },
+    })
+
+    await tx.auditLog.create({
+      data: {
+        action: 'UPDATE',
+        entityType: 'OPERATION',
+        entityId: operationId,
+        officerId: updatedBy,
+        details: {
+          status,
+          endDate: endDate || null,
+        } as Prisma.InputJsonValue,
+      },
+    })
+
+    return updated
   })
 
-  // Create audit log
-  await prisma.auditLog.create({
-    data: {
-      userId: updatedBy,
-      action: 'UPDATE',
-      resourceType: 'Operation',
-      resourceId: operationId,
-      newValue: JSON.stringify({ status, endDate }),
-    },
-  })
-
-  return operation
+  return buildOperationView(operation)
 }
 
 export async function addOperationTimeline(data: {
@@ -130,29 +194,35 @@ export async function addOperationTimeline(data: {
   location?: string
   createdBy: string
 }) {
-  const timeline = await prisma.operationTimeline.create({
-    data: {
-      operationId: data.operationId,
-      eventType: data.eventType,
-      description: data.description,
-      location: data.location,
-      createdBy: data.createdBy,
-    },
+  return prisma.$transaction(async (tx) => {
+    const timeline = await tx.operationTimeline.create({
+      data: {
+        id: `opt_${randomUUID()}`,
+        operationId: data.operationId,
+        eventType: data.eventType,
+        description: data.description,
+        location: data.location ?? null,
+        createdBy: data.createdBy,
+      },
+    })
+
+    await tx.operation.update({
+      where: { id: data.operationId },
+      data: { updatedAt: new Date() },
+    })
+
+    return timeline as OperationTimelineRecord
   })
-  return timeline
 }
 
 export async function getOperationTimeline(operationId: string) {
-  const timeline = await prisma.operationTimeline.findMany({
+  const timelines = await prisma.operationTimeline.findMany({
     where: { operationId },
     orderBy: { createdAt: 'asc' },
   })
-  return timeline
-}
 
-// ============================================================================
-// INCIDENT OPERATIONS
-// ============================================================================
+  return timelines as OperationTimelineRecord[]
+}
 
 export async function reportIncident(data: {
   incidentNumber: string
@@ -166,51 +236,52 @@ export async function reportIncident(data: {
   description: string
   respondingTeam?: string
 }) {
-  const incident = await prisma.incident.create({
-    data: {
-      incidentNumber: data.incidentNumber,
-      type: data.type,
-      severity: data.severity,
-      reportedBy: data.reportedBy,
-      departmentId: data.departmentId,
-      location: data.location,
-      province: data.province,
-      district: data.district,
-      description: data.description,
-      respondingTeam: data.respondingTeam,
-      status: 'REPORTED',
-      reportTime: new Date(),
-    },
-    include: {
-      department: true,
-      timeline: true,
-    },
+  const incident = await prisma.$transaction(async (tx) => {
+    const created = await tx.incident.create({
+      data: {
+        id: `inc_${randomUUID()}`,
+        incidentNumber: data.incidentNumber,
+        type: data.type,
+        severity: data.severity,
+        reportedBy: data.reportedBy,
+        departmentId: data.departmentId,
+        location: data.location,
+        province: data.province,
+        district: data.district,
+        description: data.description,
+        respondingTeam: data.respondingTeam ?? null,
+        status: 'REPORTED',
+        reportTime: new Date(),
+      },
+      include: { timelines: true },
+    })
+
+    await tx.auditLog.create({
+      data: {
+        action: 'CREATE',
+        entityType: 'INCIDENT',
+        entityId: created.id,
+        officerId: data.reportedBy,
+        details: {
+          incidentNumber: data.incidentNumber,
+          type: data.type,
+          severity: data.severity,
+        } as Prisma.InputJsonValue,
+      },
+    })
+
+    return created
   })
 
-  // Create audit log
-  await prisma.auditLog.create({
-    data: {
-      userId: data.reportedBy,
-      action: 'CREATE',
-      resourceType: 'Incident',
-      resourceId: incident.id,
-    },
-  })
-
-  return incident
+  return buildIncidentView(incident)
 }
 
 export async function getIncident(incidentId: string) {
   const incident = await prisma.incident.findUnique({
     where: { id: incidentId },
-    include: {
-      department: true,
-      timeline: {
-        orderBy: { createdAt: 'desc' },
-      },
-    },
+    include: { timelines: true },
   })
-  return incident
+  return incident ? buildIncidentView(incident) : null
 }
 
 export async function listIncidents(filters?: {
@@ -223,34 +294,34 @@ export async function listIncidents(filters?: {
 }) {
   const incidents = await prisma.incident.findMany({
     where: {
-      ...(filters?.departmentId && { departmentId: filters.departmentId }),
-      ...(filters?.status && { status: filters.status }),
-      ...(filters?.severity && { severity: filters.severity }),
-      ...(filters?.type && { type: filters.type }),
+      ...(filters?.departmentId ? { departmentId: filters.departmentId } : {}),
+      ...(filters?.status ? { status: filters.status } : {}),
+      ...(filters?.severity ? { severity: filters.severity } : {}),
+      ...(filters?.type ? { type: filters.type } : {}),
     },
-    include: {
-      department: true,
-    },
+    include: { timelines: true },
     orderBy: { reportTime: 'desc' },
     skip: filters?.skip || 0,
     take: filters?.take || 50,
   })
-  return incidents
+
+  return Promise.all(incidents.map(buildIncidentView))
 }
 
 export async function updateIncidentStatus(
   incidentId: string,
   status: string,
-  resolvedTime?: Date
+  resolvedTime?: Date,
 ) {
   const incident = await prisma.incident.update({
     where: { id: incidentId },
     data: {
       status,
-      ...(resolvedTime && { resolvedTime }),
+      ...(resolvedTime ? { resolvedTime } : {}),
     },
+    include: { timelines: true },
   })
-  return incident
+  return buildIncidentView(incident)
 }
 
 export async function addIncidentTimeline(data: {
@@ -259,21 +330,22 @@ export async function addIncidentTimeline(data: {
   description: string
   createdBy: string
 }) {
-  const timeline = await prisma.incidentTimeline.create({
+  return prisma.incidentTimeline.create({
     data: {
+      id: `inct_${randomUUID()}`,
       incidentId: data.incidentId,
       eventType: data.eventType,
       description: data.description,
       createdBy: data.createdBy,
     },
-  })
-  return timeline
+  }) as unknown as IncidentTimelineRecord
 }
 
 export async function getIncidentTimeline(incidentId: string) {
-  const timeline = await prisma.incidentTimeline.findMany({
+  const timelines = await prisma.incidentTimeline.findMany({
     where: { incidentId },
     orderBy: { createdAt: 'asc' },
   })
-  return timeline
+
+  return timelines as IncidentTimelineRecord[]
 }

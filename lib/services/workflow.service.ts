@@ -27,8 +27,16 @@ export const workflowService = {
       throw new Error(`Cannot transition from ${fromState} to ${toState}`)
     }
 
+    const states = await workflowRepository.getWorkflowStates(workflowType)
+    const fromWorkflowState = states.find((state) => state.stateName === fromState || state.id === fromState)
+    const toWorkflowState = states.find((state) => state.stateName === toState || state.id === toState)
+
+    if (!fromWorkflowState || !toWorkflowState) {
+      throw new Error(`Workflow states not defined for ${workflowType}`)
+    }
+
     // Check if approval is required
-    const transition = await workflowRepository.getTransitionByStates(fromState, toState)
+    const transition = await workflowRepository.getTransitionByStates(fromWorkflowState.id, toWorkflowState.id)
     if (transition?.requiresApproval) {
       // Create approval request
       const approval = await workflowRepository.createApproval({
@@ -36,7 +44,7 @@ export const workflowService = {
         entityId,
         requestedBy: userId,
         requestedByRole: userRole,
-        requiredRole: transition.approvalRole,
+        requiredRole: transition.approvalRole ?? 'SYSTEM',
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
         reason,
       })

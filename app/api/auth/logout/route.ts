@@ -1,9 +1,16 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { revokeSession } from '@/lib/auth/session-manager';
 
 export async function POST() {
     try {
         const cookieStore = await cookies();
+        const sessionToken = cookieStore.get('nsscp_session')?.value;
+
+        if (sessionToken) {
+            await revokeSession(sessionToken);
+        }
+
         /**
          * محو الكوكيز عند تسجيل الخروج — نفس إعدادات الأمان المستخدمة
          * عند إنشاء الكوكيز لضمان إزالتها بشكل صحيح

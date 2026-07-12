@@ -257,45 +257,39 @@ function extractDetailsText(details: string): string {
  */
 export async function fetchActiveUsers(signal?: AbortSignal): Promise<ActiveUser[]> {
     try {
-        const response = await apiFetch<Record<string, unknown>>('/api/users', signal);
-        // /api/users returns sector info, not a list of users
-        // We derive active users from available data
-        const activeOps = (response.metrics as { staffOnDuty?: number })?.staffOnDuty || 0;
-        // Generate user entries from the count
-        const hierarchyLocations = [
-            'وزارة الداخلية > الإدارة العامة',
-            'أمانة العاصمة > مديرية التحرير',
-            'محافظة عدن > مديرية خور مكسر',
-            'محافظة حضرموت > مديرية المكلا',
-            'محافظة تعز > مديرية القاهرة',
-            'محافظة إب > مديرية المركز',
-            'محافظة الحديدة > مديرية الحوك',
-            'محافظة مأرب > مديرية الوادي',
-            'محافظة ذمار > مديرية عنس',
-            'محافظة صعدة > مديرية سحار',
-        ];
+        const response = await apiFetch<{
+            total: number;
+            records: Array<{
+                id: string;
+                userId: string;
+                username: string;
+                role: string;
+                department: string | null;
+                rank: string | null;
+                lastActive: string;
+                createdAt: string;
+                expiresAt: string;
+                ipAddress: string;
+                userAgent: string;
+            }>;
+        }>('/api/auth/sessions', signal);
 
-        const roles = ['ضابط', 'ملازم', 'نقيب', 'رائد', 'مقدم', 'عقيد', 'مدير'];
-        const departments = [
-            'مركز القيادة', 'الأمن العام', 'المباحث الجنائية', 'المرور',
-            'الدفاع المدني', 'حماية المنشآت', 'مكافحة المخدرات', 'الأمن السياسي',
-        ];
+        return (response.records || []).map((session) => {
+            const startedAt = new Date(session.createdAt).getTime();
+            const lastActiveAt = new Date(session.lastActive).getTime();
+            const durationMinutes = Math.max(0, Math.round((lastActiveAt - startedAt) / 60000));
 
-        const users: ActiveUser[] = [];
-        const count = Math.min(activeOps || 8, 20);
-        for (let i = 0; i < count; i++) {
-            users.push({
-                id: `user-${i + 1}`,
-                username: `ضابط ${i + 1}`,
-                role: roles[i % roles.length],
-                department: departments[i % departments.length],
-                hierarchyLocation: hierarchyLocations[i % hierarchyLocations.length],
-                lastActive: new Date(Date.now() - Math.random() * 60000).toISOString(),
-                sessionDuration: Math.floor(Math.random() * 480) + 15,
-                ipAddress: `10.0.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
-            });
-        }
-        return users;
+            return {
+                id: session.id,
+                username: session.username,
+                role: session.role,
+                department: session.department || session.rank || 'غير محدد',
+                hierarchyLocation: session.department || undefined,
+                lastActive: session.lastActive,
+                sessionDuration: durationMinutes,
+                ipAddress: session.ipAddress,
+            };
+        });
     } catch {
         return [];
     }
@@ -317,47 +311,51 @@ export async function fetchStatsOverview(signal?: AbortSignal): Promise<StatsOve
             '/api/audit?pageSize=1', signal
         ).catch(() => ({ total: 0 }));
 
-        const [hierarchyRes, auditRes] = await Promise.all([hierarchyPromise, auditPromise]);
+        const sessionsPromise = apiFetch<{
+            total: number;
+            records: Array<{
+                id: string;
+                userId: string;
+            }>;
+        }>('/api/auth/sessions', signal).catch(() => ({ total: 0, records: [] }));
+
+        const [hierarchyRes, auditRes, sessionsRes] = await Promise.all([hierarchyPromise, auditPromise, sessionsPromise]);
 
         const entities = hierarchyRes.data || [];
         const governorateCount = entities.filter(e => e.type === 'GOVERNORATE' || e.type === 'MINISTRY').length;
         const departmentCount = entities.filter(e => e.type === 'DEPARTMENT').length;
         const totalAuditEntries = auditRes.total || 0;
+        const activeSessions = sessionsRes.total || sessionsRes.records.length;
+        const activeUsers = new Set((sessionsRes.records || []).map((session) => session.userId)).size;
 
         return {
             totalAlerts: totalAuditEntries,
-            criticalAlerts: Math.floor(totalAuditEntries * 0.15), // ~15% are critical
-            activeUsers: Math.max(1, Math.floor(Math.random() * 20) + 5),
-            activeSessions: Math.max(1, Math.floor(Math.random() * 15) + 3),
-            systemUptime: '99:59:59',
+            criticalAlerts: Math.floor(totalAuditEntries * 0.15),
+            activeUsers,
+            activeSessions,
+            systemUptime: 'غير متاح',
             lastUpdated: new Date().toISOString(),
             departmentCount,
             governorateCount,
         };
     } catch {
-        // Fallback defaults if all APIs fail
         return {
             totalAlerts: 0,
             criticalAlerts: 0,
             activeUsers: 0,
             activeSessions: 0,
-            systemUptime: formatUptime(0),
+            systemUptime: 'غير متاح',
             lastUpdated: new Date().toISOString(),
-            departmentCount: 19,
-            governorateCount: 22,
+            departmentCount: 0,
+            governorateCount: 0,
         };
     }
-}
-
-function formatUptime(_uptimeSeconds: number): string {
-    return '99:59:59';
 }
 
 /**
  * Fetch quick actions (static data sourced from existing command center config).
  */
 export async function fetchQuickActions(signal?: AbortSignal): Promise<QuickAction[]> {
-    // Static data - no backend API needed, these are UI preset actions
     return [
         { id: 'broadcast', label: 'إرسال تعميم عاجل', icon: 'radio', route: '/dashboard/circulars', enabled: true },
         { id: 'deploy', label: 'نشر قوة تدخل', icon: 'users', route: '/dashboard/operations', enabled: true },

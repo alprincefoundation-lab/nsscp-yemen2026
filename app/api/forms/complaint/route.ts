@@ -1,10 +1,7 @@
 export const dynamic = 'force-dynamic'
 
+import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import {
-  createFormSubmission,
-  getFormTemplateByType,
-} from '@/lib/services/forms.service'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
@@ -27,6 +24,213 @@ const ComplaintFormSchema = z.object({
   additionalNotes: z.string().optional(),
 })
 
+type DynamicFormRow = {
+  id: string
+  name: string
+  code: string | null
+  hierarchyEntityId: string
+  description: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+type FormSubmissionRow = {
+  id: string
+  templateId: string
+  data: unknown
+  submittedBy: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+function escapeSqlLiteral(value: string): string {
+  return value.replace(/'/g, "''")
+}
+
+function sqlValue(value: string | null | undefined): string {
+  if (value === null || value === undefined || value === '') {
+    return 'NULL'
+  }
+
+  return `'${escapeSqlLiteral(value)}'`
+}
+
+function sqlJson(value: unknown): string {
+  return `'${escapeSqlLiteral(JSON.stringify(value))}'::jsonb`
+}
+
+async function getComplaintTemplate(): Promise<DynamicFormRow | null> {
+  const rows = await prisma.$queryRawUnsafe<DynamicFormRow[]>(`
+    SELECT
+      "id",
+      "name",
+      "code",
+      "hierarchyEntityId",
+      "description",
+      "createdAt",
+      "updatedAt"
+    FROM "DynamicForm"
+    WHERE "code" = 'COMPLAINT' OR "name" = 'complaint_form'
+    ORDER BY "createdAt" DESC
+    LIMIT 1
+  `)
+
+  return rows[0] ?? null
+}
+
+async function createComplaintTemplate(hierarchyEntityId: string): Promise<DynamicFormRow> {
+  const templateId = randomUUID()
+  const now = new Date().toISOString()
+
+  await prisma.$executeRawUnsafe(`
+    INSERT INTO "DynamicForm" (
+      "id",
+      "name",
+      "code",
+      "hierarchyEntityId",
+      "description",
+      "createdAt",
+      "updatedAt"
+    ) VALUES (
+      ${sqlValue(templateId)},
+      'complaint_form',
+      'COMPLAINT',
+      ${sqlValue(hierarchyEntityId)},
+      ${sqlValue('استمارة تقديم الشكاوى الجنائية والمدنية')},
+      ${sqlValue(now)},
+      ${sqlValue(now)}
+    )
+  `)
+
+  const fieldRows = [
+    ['complaintNumber', 'رقم الشكوى', 'TEXT', false, 1],
+    ['submissionDate', 'تاريخ تقديم الشكوى', 'DATE', true, 2],
+    ['complainantName', 'اسم المشتكي', 'TEXT', true, 3],
+    ['identityNumber', 'رقم الهوية', 'TEXT', true, 4],
+    ['birthDate', 'تاريخ الميلاد', 'DATE', true, 5],
+    ['gender', 'الجنس', 'SELECT', true, 6],
+    ['address', 'عنوان السكن', 'TEXT', true, 7],
+    ['phoneNumber', 'رقم الهاتف', 'TEXT', true, 8],
+    ['complaintType', 'نوع الشكوى', 'SELECT', true, 9],
+    ['complaintDescription', 'وصف الشكوى', 'TEXTAREA', true, 10],
+    ['incidentDate', 'تاريخ وقوع الحادث', 'DATE', true, 11],
+    ['relatedEntity', 'الجهة المعنية', 'TEXT', false, 12],
+    ['attachments', 'المرفقات', 'FILE', false, 13],
+    ['complainantSignature', 'توقيع المشتكي', 'SIGNATURE', false, 14],
+    ['additionalNotes', 'ملاحظات إضافية', 'TEXTAREA', false, 15],
+  ] as const
+
+  for (const [name, label, type, required, sortOrder] of fieldRows) {
+    const options =
+      name === 'gender'
+        ? [{ value: 'MALE', label: 'ذكر' }, { value: 'FEMALE', label: 'أنثى' }]
+        : name === 'complaintType'
+          ? [
+              { value: 'CRIMINAL', label: 'شكوى جنائية' },
+              { value: 'CIVIL', label: 'شكوى مدنية' },
+              { value: 'SERVICE', label: 'شكوى خدمات' },
+              { value: 'OTHER', label: 'أخرى' },
+            ]
+          : null
+
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO "DynamicField" (
+        "id",
+        "formId",
+        "name",
+        "label",
+        "type",
+        "required",
+        "options",
+        "sortOrder",
+        "placeholder",
+        "validationRules",
+        "createdAt",
+        "updatedAt"
+      ) VALUES (
+        ${sqlValue(randomUUID())},
+        ${sqlValue(templateId)},
+        ${sqlValue(name)},
+        ${sqlValue(label)},
+        ${sqlValue(type)},
+        ${required ? 'TRUE' : 'FALSE'},
+        ${options ? sqlJson(options) : 'NULL'},
+        ${sortOrder},
+        NULL,
+        NULL,
+        ${sqlValue(now)},
+        ${sqlValue(now)}
+      )
+    `)
+  }
+
+  return {
+    id: templateId,
+    name: 'complaint_form',
+    code: 'COMPLAINT',
+    hierarchyEntityId,
+    description: 'استمارة تقديم الشكاوى الجنائية والمدنية',
+    createdAt: new Date(now),
+    updatedAt: new Date(now),
+  }
+}
+
+async function createSubmission(args: {
+  templateId: string
+  submittedBy: string
+  departmentId: string
+  formData: unknown
+}): Promise<FormSubmissionRow> {
+  const submissionId = randomUUID()
+  const now = new Date().toISOString()
+
+  await prisma.$executeRawUnsafe(`
+    INSERT INTO "FormSubmission" (
+      "id",
+      "templateId",
+      "data",
+      "submittedBy",
+      "createdAt",
+      "updatedAt"
+    ) VALUES (
+      ${sqlValue(submissionId)},
+      ${sqlValue(args.templateId)},
+      ${sqlJson({
+        ...((args.formData as Record<string, unknown>) || {}),
+        departmentId: args.departmentId,
+      })},
+      ${sqlValue(args.submittedBy)},
+      ${sqlValue(now)},
+      ${sqlValue(now)}
+    )
+  `)
+
+  const rows = await prisma.$queryRawUnsafe<FormSubmissionRow[]>(`
+    SELECT
+      "id",
+      "templateId",
+      "data",
+      "submittedBy",
+      "createdAt",
+      "updatedAt"
+    FROM "FormSubmission"
+    WHERE "id" = ${sqlValue(submissionId)}
+    LIMIT 1
+  `)
+
+  return rows[0] ?? {
+    id: submissionId,
+    templateId: args.templateId,
+    data: {
+      ...(args.formData as Record<string, unknown>),
+      departmentId: args.departmentId,
+    },
+    submittedBy: args.submittedBy,
+    createdAt: new Date(now),
+    updatedAt: new Date(now),
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const userId = request.headers.get('x-user-id')
@@ -42,152 +246,17 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = ComplaintFormSchema.parse(body)
 
-    // Get or create complaint form template
-    let template = await getFormTemplateByType('COMPLAINT')
-
+    let template = await getComplaintTemplate()
     if (!template) {
-      // Create template if it doesn't exist
-      template = await prisma.formTemplate.create({
-        data: {
-          name: 'complaint_form',
-          displayName: 'نموذج استمارة الشكوى',
-          formType: 'COMPLAINT',
-          description: 'استمارة تقديم الشكاوى الجنائية والمدنية',
-          fields: {
-            create: [
-              {
-                fieldName: 'complaintNumber',
-                displayLabel: 'رقم الشكوى',
-                fieldType: 'TEXT',
-                required: false,
-                order: 1,
-              },
-              {
-                fieldName: 'submissionDate',
-                displayLabel: 'تاريخ تقديم الشكوى',
-                fieldType: 'DATE',
-                required: true,
-                order: 2,
-              },
-              {
-                fieldName: 'complainantName',
-                displayLabel: 'اسم المشتكي',
-                fieldType: 'TEXT',
-                required: true,
-                order: 3,
-              },
-              {
-                fieldName: 'identityNumber',
-                displayLabel: 'رقم الهوية',
-                fieldType: 'TEXT',
-                required: true,
-                order: 4,
-              },
-              {
-                fieldName: 'birthDate',
-                displayLabel: 'تاريخ الميلاد',
-                fieldType: 'DATE',
-                required: true,
-                order: 5,
-              },
-              {
-                fieldName: 'gender',
-                displayLabel: 'الجنس',
-                fieldType: 'SELECT',
-                required: true,
-                order: 6,
-                options: JSON.stringify([
-                  { value: 'MALE', label: 'ذكر' },
-                  { value: 'FEMALE', label: 'أنثى' },
-                ]),
-              },
-              {
-                fieldName: 'address',
-                displayLabel: 'عنوان السكن',
-                fieldType: 'TEXT',
-                required: true,
-                order: 7,
-              },
-              {
-                fieldName: 'phoneNumber',
-                displayLabel: 'رقم الهاتف',
-                fieldType: 'TEXT',
-                required: true,
-                order: 8,
-              },
-              {
-                fieldName: 'complaintType',
-                displayLabel: 'نوع الشكوى',
-                fieldType: 'SELECT',
-                required: true,
-                order: 9,
-                options: JSON.stringify([
-                  { value: 'CRIMINAL', label: 'شكوى جنائية' },
-                  { value: 'CIVIL', label: 'شكوى مدنية' },
-                  { value: 'SERVICE', label: 'شكوى خدمات' },
-                  { value: 'OTHER', label: 'أخرى' },
-                ]),
-              },
-              {
-                fieldName: 'complaintDescription',
-                displayLabel: 'وصف الشكوى',
-                fieldType: 'TEXTAREA',
-                required: true,
-                order: 10,
-              },
-              {
-                fieldName: 'incidentDate',
-                displayLabel: 'تاريخ وقوع الحادث',
-                fieldType: 'DATE',
-                required: true,
-                order: 11,
-              },
-              {
-                fieldName: 'relatedEntity',
-                displayLabel: 'الجهة المعنية',
-                fieldType: 'TEXT',
-                required: false,
-                order: 12,
-              },
-              {
-                fieldName: 'attachments',
-                displayLabel: 'المرفقات',
-                fieldType: 'FILE',
-                required: false,
-                order: 13,
-              },
-              {
-                fieldName: 'complainantSignature',
-                displayLabel: 'توقيع المشتكي',
-                fieldType: 'SIGNATURE',
-                required: false,
-                order: 14,
-              },
-              {
-                fieldName: 'additionalNotes',
-                displayLabel: 'ملاحظات إضافية',
-                fieldType: 'TEXTAREA',
-                required: false,
-                order: 15,
-              },
-            ],
-          },
-        },
-        include: { fields: true },
-      })
+      template = await createComplaintTemplate(departmentId)
     }
 
-    // Create submission
-    const submission = await createFormSubmission({
+    const submission = await createSubmission({
       templateId: template.id,
       submittedBy: userId,
       departmentId,
       formData: validatedData,
-      relatedEntityType: 'COMPLAINT',
     })
-
-    // If there are approvals required, create them based on workflow
-    // This will integrate with the workflow engine
 
     return NextResponse.json(
       {
@@ -204,6 +273,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
     console.error('[v0] Complaint form error:', error)
     return NextResponse.json(
       { error: 'خطأ في الخادم' },

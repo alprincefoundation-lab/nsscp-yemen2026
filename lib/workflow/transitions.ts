@@ -3,31 +3,32 @@
  * Manages workflow state transitions with approval, audit, and notifications
  */
 
-import { prisma } from '@/lib/prisma'
+import { createAuditLog } from '@/lib/core/audit-engine'
+import { workflowRepository } from '@/lib/repositories/workflow.repository'
 import {
   WorkflowType,
   WorkflowState,
   TransitionContext,
   TransitionResult,
-  workflowStateMachine
+  workflowStateMachine,
 } from './state-machine'
 
 export interface WorkflowTransitionLog {
   id: string
   entityId: string
-  workflowType: WorkflowType
-  previousState: WorkflowState
-  newState: WorkflowState
+  workflowType: string
+  previousState: string
+  newState: string
   userId: string
   userRole: string
   userDepartment: string
-  reason?: string
+  reason?: string | null
   requiresApproval: boolean
-  approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED'
-  approvedBy?: string
-  approvalTimestamp?: Date
+  approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | string | null
+  approvedBy?: string | null
+  approvalTimestamp?: Date | null
   timestamp: Date
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown> | null
 }
 
 export interface WorkflowApproval {
@@ -38,9 +39,9 @@ export interface WorkflowApproval {
   requestedByRole: string
   requiredRole: string
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
-  approvedBy?: string
-  approvalDate?: Date
-  rejectionReason?: string
+  approvedBy?: string | null
+  approvalDate?: Date | null
+  rejectionReason?: string | null
   createdAt: Date
   expiresAt: Date
 }
@@ -54,7 +55,7 @@ export class WorkflowTransitionsService {
    */
   async requestTransition(
     context: TransitionContext,
-    reason?: string
+    reason?: string,
   ): Promise<{
     success: boolean
     transition?: TransitionResult
@@ -62,33 +63,30 @@ export class WorkflowTransitionsService {
     error?: string
   }> {
     try {
-      // Validate transition
       const isValid = workflowStateMachine.canTransition(
         context.workflowType,
         context.currentState,
         context.targetState,
-        context
+        context,
       )
 
       if (!isValid) {
         return {
           success: false,
-          error: `Cannot transition from ${context.currentState} to ${context.targetState}`
+          error: `Cannot transition from ${context.currentState} to ${context.targetState}`,
         }
       }
 
-      // Perform transition
       const transition = await workflowStateMachine.transitionTo(context)
 
       if (!transition.success) {
         return {
           success: false,
-          error: transition.message
+          error: transition.message,
         }
       }
 
-      // Log transition
-      const transitionLog = await this.logTransition({
+      await workflowRepository.createTransitionLog({
         id: transition.transitionId,
         entityId: context.entityId,
         workflowType: context.workflowType,
@@ -97,13 +95,27 @@ export class WorkflowTransitionsService {
         userId: context.userId,
         userRole: context.userRole,
         userDepartment: context.userDepartment,
-        reason,
+        reason: reason ?? null,
         requiresApproval: transition.approvalRequired,
+        approvalStatus: transition.approvalRequired ? 'PENDING' : 'APPROVED',
+        approvalTimestamp: transition.approvalRequired ? null : transition.timestamp,
         timestamp: transition.timestamp,
-        metadata: context.metadata
+        metadata: context.metadata ?? null,
       })
 
-      // If approval required, create approval request
+      await createAuditLog({
+        action: 'WORKFLOW_TRANSITION',
+        entityType: 'WORKFLOW',
+        entityId: context.entityId,
+        userId: context.userId,
+        details: {
+          from: transition.previousState,
+          to: transition.newState,
+          workflowType: context.workflowType,
+          requiresApproval: transition.approvalRequired,
+        },
+      })
+
       if (transition.approvalRequired && transition.approvalRole) {
         const approval = await this.createApprovalRequest({
           workflowTransitionId: transition.transitionId,
@@ -111,71 +123,25 @@ export class WorkflowTransitionsService {
           requestedBy: context.userId,
           requestedByRole: context.userRole,
           requiredRole: transition.approvalRole,
-          reason
+          reason,
         })
 
         return {
           success: true,
           transition,
-          approval
+          approval,
         }
       }
 
       return {
         success: true,
-        transition
+        transition,
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       }
-    }
-  }
-
-  /**
-   * Log workflow transition
-   */
-  private async logTransition(log: WorkflowTransitionLog): Promise<void> {
-    try {
-      await prisma.workflowTransitionLog.create({
-        data: {
-          id: log.id,
-          entityId: log.entityId,
-          workflowType: log.workflowType,
-          previousState: log.previousState,
-          newState: log.newState,
-          userId: log.userId,
-          userRole: log.userRole,
-          userDepartment: log.userDepartment,
-          reason: log.reason,
-          requiresApproval: log.requiresApproval,
-          timestamp: log.timestamp,
-          metadata: log.metadata
-        }
-      } as any)
-
-      // Also log to audit trail
-      await prisma.auditLog.create({
-        data: {
-          action: 'WORKFLOW_TRANSITION',
-          resourceType: 'WORKFLOW',
-          resourceId: log.entityId,
-          userId: log.userId,
-          userRole: log.userRole,
-          changes: {
-            from: log.previousState,
-            to: log.newState,
-            workflowType: log.workflowType
-          },
-          ipAddress: '',
-          userAgent: '',
-          timestamp: log.timestamp,
-          isDeleted: false
-        }
-      })
-    } catch (error) {
-      console.error('Error logging transition:', error)
     }
   }
 
@@ -190,24 +156,18 @@ export class WorkflowTransitionsService {
     requiredRole: string
     reason?: string
   }): Promise<WorkflowApproval> {
-    const expiresAt = new Date()
-    expiresAt.setDate(expiresAt.getDate() + 7) // 7-day expiration
+    const approval = await workflowRepository.createApproval({
+      workflowTransitionId: data.workflowTransitionId,
+      entityId: data.entityId,
+      requestedBy: data.requestedBy,
+      requestedByRole: data.requestedByRole,
+      requiredRole: data.requiredRole,
+      status: 'PENDING',
+      reason: data.reason ?? null,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    })
 
-    const approval = await prisma.workflowApproval.create({
-      data: {
-        workflowTransitionId: data.workflowTransitionId,
-        entityId: data.entityId,
-        requestedBy: data.requestedBy,
-        requestedByRole: data.requestedByRole,
-        requiredRole: data.requiredRole,
-        status: 'PENDING',
-        createdAt: new Date(),
-        expiresAt,
-        reason: data.reason
-      }
-    } as any)
-
-    return approval as any
+    return approval
   }
 
   /**
@@ -216,74 +176,62 @@ export class WorkflowTransitionsService {
   async approveTransition(
     approvalId: string,
     approvedBy: string,
-    comment?: string
+    comment?: string,
   ): Promise<{
     success: boolean
     approval?: WorkflowApproval
     error?: string
   }> {
     try {
-      const approval = await prisma.workflowApproval.findUnique({
-        where: { id: approvalId }
-      } as any)
+      const approvalRow = await workflowRepository.getApprovalById(approvalId)
 
-      if (!approval) {
+      if (!approvalRow) {
         return {
           success: false,
-          error: 'Approval request not found'
+          error: 'Approval request not found',
         }
       }
 
-      if (approval.status !== 'PENDING') {
+      if (approvalRow.status !== 'PENDING') {
         return {
           success: false,
-          error: `Approval already ${approval.status.toLowerCase()}`
+          error: `Approval already ${approvalRow.status.toLowerCase()}`,
         }
       }
 
-      if (new Date() > approval.expiresAt) {
+      if (new Date() > approvalRow.expiresAt) {
         return {
           success: false,
-          error: 'Approval request has expired'
+          error: 'Approval request has expired',
         }
       }
 
-      const updated = await prisma.workflowApproval.update({
-        where: { id: approvalId },
-        data: {
+      const updated = await workflowRepository.approveWorkflow(approvalId, approvedBy)
+      await workflowRepository.updateTransitionLogApproval(approvalRow.workflowTransitionId, {
+        approvalStatus: 'APPROVED',
+        approvedBy,
+        approvalTimestamp: new Date(),
+      })
+
+      await createAuditLog({
+        action: 'WORKFLOW_APPROVAL',
+        entityType: 'WORKFLOW',
+        entityId: approvalId,
+        userId: approvedBy,
+        details: {
           status: 'APPROVED',
-          approvedBy,
-          approvalDate: new Date()
-        }
-      } as any)
-
-      // Log approval
-      await prisma.auditLog.create({
-        data: {
-          action: 'WORKFLOW_APPROVAL',
-          resourceType: 'WORKFLOW_APPROVAL',
-          resourceId: approvalId,
-          userId: approvedBy,
-          userRole: '',
-          changes: {
-            status: 'APPROVED',
-            comment
-          },
-          ipAddress: '',
-          userAgent: '',
-          timestamp: new Date(),
-          isDeleted: false
-        }
+          comment: comment ?? null,
+        },
       })
 
       return {
         success: true,
-        approval: updated as any
+        approval: updated,
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       }
     }
   }
@@ -294,68 +242,55 @@ export class WorkflowTransitionsService {
   async rejectTransition(
     approvalId: string,
     rejectedBy: string,
-    reason: string
+    reason: string,
   ): Promise<{
     success: boolean
     approval?: WorkflowApproval
     error?: string
   }> {
     try {
-      const approval = await prisma.workflowApproval.findUnique({
-        where: { id: approvalId }
-      } as any)
+      const approvalRow = await workflowRepository.getApprovalById(approvalId)
 
-      if (!approval) {
+      if (!approvalRow) {
         return {
           success: false,
-          error: 'Approval request not found'
+          error: 'Approval request not found',
         }
       }
 
-      if (approval.status !== 'PENDING') {
+      if (approvalRow.status !== 'PENDING') {
         return {
           success: false,
-          error: `Approval already ${approval.status.toLowerCase()}`
+          error: `Approval already ${approvalRow.status.toLowerCase()}`,
         }
       }
 
-      const updated = await prisma.workflowApproval.update({
-        where: { id: approvalId },
-        data: {
+      const updated = await workflowRepository.rejectWorkflow(approvalId, rejectedBy, reason)
+      await workflowRepository.updateTransitionLogApproval(approvalRow.workflowTransitionId, {
+        approvalStatus: 'REJECTED',
+        approvedBy: rejectedBy,
+        approvalTimestamp: new Date(),
+      })
+
+      await createAuditLog({
+        action: 'WORKFLOW_REJECTION',
+        entityType: 'WORKFLOW',
+        entityId: approvalId,
+        userId: rejectedBy,
+        details: {
           status: 'REJECTED',
-          approvedBy: rejectedBy,
-          approvalDate: new Date(),
-          rejectionReason: reason
-        }
-      } as any)
-
-      // Log rejection
-      await prisma.auditLog.create({
-        data: {
-          action: 'WORKFLOW_REJECTION',
-          resourceType: 'WORKFLOW_APPROVAL',
-          resourceId: approvalId,
-          userId: rejectedBy,
-          userRole: '',
-          changes: {
-            status: 'REJECTED',
-            reason
-          },
-          ipAddress: '',
-          userAgent: '',
-          timestamp: new Date(),
-          isDeleted: false
-        }
+          reason,
+        },
       })
 
       return {
         success: true,
-        approval: updated as any
+        approval: updated,
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       }
     }
   }
@@ -365,15 +300,9 @@ export class WorkflowTransitionsService {
    */
   async getTransitionHistory(
     entityId: string,
-    limit: number = 50
+    limit: number = 50,
   ): Promise<WorkflowTransitionLog[]> {
-    const logs = await prisma.workflowTransitionLog.findMany({
-      where: { entityId },
-      orderBy: { timestamp: 'desc' },
-      take: limit
-    } as any)
-
-    return logs as any
+    return workflowRepository.getTransitionHistory(entityId, limit)
   }
 
   /**
@@ -381,64 +310,43 @@ export class WorkflowTransitionsService {
    */
   async getPendingApprovals(
     requiredRole: string,
-    limit: number = 20
+    limit: number = 20,
   ): Promise<WorkflowApproval[]> {
-    const approvals = await prisma.workflowApproval.findMany({
-      where: {
-        requiredRole,
-        status: 'PENDING',
-        expiresAt: {
-          gt: new Date()
-        }
-      },
-      orderBy: { createdAt: 'asc' },
-      take: limit
-    } as any)
-
-    return approvals as any
+    return workflowRepository.getPendingApprovals(requiredRole, limit)
   }
 
   /**
    * Get workflow status
    */
   async getWorkflowStatus(entityId: string): Promise<{
-    currentState: WorkflowState | null
-    workflowType: WorkflowType | null
+    currentState: string | null
+    workflowType: string | null
     lastTransition?: WorkflowTransitionLog
     pendingApprovals?: WorkflowApproval[]
   }> {
-    const lastLog = await prisma.workflowTransitionLog.findFirst({
-      where: { entityId },
-      orderBy: { timestamp: 'desc' }
-    } as any)
+    const logs = await workflowRepository.getTransitionHistory(entityId, 1)
+    const lastLog = logs[0]
 
     const pendingApprovals = lastLog
-      ? await prisma.workflowApproval.findMany({
-        where: {
-          workflowTransitionId: lastLog.id,
-          status: 'PENDING'
-        }
-      } as any)
+      ? (await workflowRepository.getApprovalsByEntity(entityId)).filter(
+          (approval) => approval.workflowTransitionId === lastLog.id && approval.status === 'PENDING',
+        )
       : []
 
     return {
       currentState: lastLog?.newState || null,
       workflowType: lastLog?.workflowType || null,
-      lastTransition: lastLog as any,
-      pendingApprovals: pendingApprovals as any
+      lastTransition: lastLog,
+      pendingApprovals,
     }
   }
 
   /**
    * Get available transitions
    */
-  getAvailableTransitions(
-    workflowType: WorkflowType,
-    currentState: WorkflowState
-  ) {
+  getAvailableTransitions(workflowType: WorkflowType, currentState: WorkflowState) {
     return workflowStateMachine.getNextStates(workflowType, currentState)
   }
 }
 
-// Export singleton instance
 export const workflowTransitionsService = new WorkflowTransitionsService()

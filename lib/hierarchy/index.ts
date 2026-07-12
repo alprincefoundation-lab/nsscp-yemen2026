@@ -8,6 +8,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { createAuditLog, type AuditAction } from '@/lib/core/audit-engine';
+import { getEntityBreadcrumb, getDescendantIds as getHierarchyDescendantIds } from '@/lib/hierarchy-service';
 import type {
   HierarchyContext,
   ScopeFilter,
@@ -37,19 +38,16 @@ const SCOPE_LABELS: Record<string, { en: string; ar: string }> = {
   self: { en: 'Self', ar: 'الشخصي' },
 };
 
-// ── Tree-walking helpers (Department only) ──────────────
+async function resolveHierarchyNodeId(userId: string, fallbackNodeId: string | null): Promise<string | null> {
+  if (fallbackNodeId) return fallbackNodeId;
 
-async function collectDescendantDepartments(departmentId: string): Promise<string[]> {
-  const ids: string[] = [departmentId];
-  const children = await prisma.department.findMany({
-    where: { parentDepartmentId: departmentId },
-    select: { id: true },
+  const assignment = await prisma.levelAssignment.findFirst({
+    where: { officerId: userId },
+    select: { unitId: true },
+    orderBy: { createdAt: 'asc' },
   });
-  for (const child of children) {
-    const childIds = await collectDescendantDepartments(child.id);
-    ids.push(...childIds);
-  }
-  return ids;
+
+  return assignment?.unitId || null;
 }
 
 // ── HierarchyEngine ──────────────────────────────────────────
@@ -68,21 +66,18 @@ export class HierarchyEngine {
   // ── Context resolution ──────────────────────────────────────
 
   async getContext(): Promise<HierarchyContext> {
-    const user = await prisma.user.findUnique({
-      where: { id: this.userId },
-      include: { department: true },
-    });
-    
-    const department = user?.department ?? null;
-    const nodeId = department?.id || this.departmentId || null;
+    const nodeId = await resolveHierarchyNodeId(this.userId, this.departmentId);
+    const breadcrumb = nodeId ? await getEntityBreadcrumb(nodeId) : [];
+    const currentNode = breadcrumb.at(-1) || null;
+    const parentNode = breadcrumb.at(-2) || null;
 
     return {
       userId: this.userId,
       role: this.role,
       hierarchyNodeId: nodeId,
-      hierarchyNodeName: department?.nameAr || null,
-      hierarchyNodeType: 'DEPARTMENT',
-      parentNodeId: department?.parentDepartmentId || null,
+      hierarchyNodeName: currentNode?.name || null,
+      hierarchyNodeType: currentNode?.type || null,
+      parentNodeId: parentNode?.id || null,
       clearance: this.getClearance(this.role),
     };
   }
@@ -111,20 +106,10 @@ export class HierarchyEngine {
   }
 
   async getDescendantIds(): Promise<string[]> {
-    if (!this.departmentId) {
-      const user = await prisma.user.findUnique({
-        where: { id: this.userId },
-        select: { departmentId: true }
-      });
-      if (user?.departmentId) {
-        this.departmentId = user.departmentId;
-      }
-    }
-    
-    if (this.departmentId) {
-      return collectDescendantDepartments(this.departmentId);
-    }
-    return [];
+    const nodeId = await resolveHierarchyNodeId(this.userId, this.departmentId);
+    if (!nodeId) return [];
+    this.departmentId = nodeId;
+    return getHierarchyDescendantIds(nodeId);
   }
 
   // ── Access checks ───────────────────────────────────────────
@@ -179,43 +164,54 @@ export class HierarchyEngine {
 
   getSidebarMenu(): SidebarMenuItem[] {
     const items: SidebarMenuItem[] = [
-      { label: 'Dashboard', labelAr: 'لوحة القيادة', href: '/dashboard', icon: 'LayoutDashboard' },
+      { label: 'الرئيسية', labelAr: 'الرئيسية', href: '/dashboard', icon: 'LayoutDashboard' },
+      { label: 'لوحة القيادة', labelAr: 'لوحة القيادة', href: '/dashboard/command-center', icon: 'Radio' },
+      { label: 'العمليات', labelAr: 'العمليات', href: '/dashboard/operations', icon: 'Activity' },
+      { label: 'القضايا', labelAr: 'القضايا', href: '/dashboard/cases', icon: 'FileText' },
+      { label: 'المطلوبون', labelAr: 'المطلوبون', href: '/dashboard/wanted-persons', icon: 'Shield' },
+      { label: 'التقارير', labelAr: 'التقارير', href: '/dashboard/reports', icon: 'ClipboardList' },
+      { label: 'الأرشيف', labelAr: 'الأرشيف', href: '/dashboard/archive', icon: 'Archive' },
+      { label: 'الإدارات', labelAr: 'الإدارات', href: '/dashboard/departments', icon: 'Building2' },
+      { label: 'الأقسام', labelAr: 'الأقسام', href: '/dashboard/sections', icon: 'Layers' },
+      { label: 'المستخدمون', labelAr: 'المستخدمون', href: '/dashboard/users', icon: 'Users' },
+      {
+        label: 'الأدوار والصلاحيات',
+        labelAr: 'الأدوار والصلاحيات',
+        href: '/dashboard/roles',
+        icon: 'Key',
+        children: [
+          { label: 'الأدوار', labelAr: 'الأدوار', href: '/dashboard/roles', icon: 'Key' },
+          { label: 'الصلاحيات', labelAr: 'الصلاحيات', href: '/dashboard/permissions', icon: 'Shield' },
+        ],
+      },
+      { label: 'الإعدادات', labelAr: 'الإعدادات', href: '/dashboard/settings', icon: 'Settings' },
     ];
+
     if (this.role === 'SUPER_ADMIN') {
-      items.push({ label: 'Command Center', labelAr: 'مركز القيادة', href: '/', icon: 'Radio' });
+      return items;
     }
-    items.push({ label: 'Cases', labelAr: 'القضايا', href: '/dashboard/cases', icon: 'FileText' });
-    items.push({ label: 'Reports', labelAr: 'التقارير', href: '/dashboard/reports', icon: 'FileText' });
-    items.push({ label: 'Archive', labelAr: 'الأرشيف', href: '/dashboard/archive', icon: 'Archive' });
-    if (this.role === 'SUPER_ADMIN') {
-      items.push({ label: 'Audit Logs', labelAr: 'سجل التدقيق', href: '/dashboard/audit', icon: 'ClipboardList' });
-      items.push({ label: 'Settings', labelAr: 'الإعدادات', href: '/dashboard/settings', icon: 'Settings' });
-    }
-    return items;
+
+    return items.filter((item) => !['/dashboard/users', '/dashboard/roles', '/dashboard/settings'].includes(item.href));
   }
 
   // ── Users in scope ──────────────────────────────────────────
 
   async getUsersInScope(page = 1, pageSize = 50) {
     const ids = await this.getDescendantIds();
-    const where: any = {};
-
-    if (ids.length > 0) {
-      where.departmentId = { in: ids };
-    }
-
     const skip = (page - 1) * pageSize;
-    const [users, total] = await Promise.all([
-      prisma.user.findMany({
+    const where = ids.length > 0 ? { unitId: { in: ids } } : {};
+    const [assignments, total] = await Promise.all([
+      prisma.levelAssignment.findMany({
         where,
         skip,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
-        include: { department: true, roles: true }
+        include: { Officer: true },
       }),
-      prisma.user.count({ where }),
+      prisma.levelAssignment.count({ where }),
     ]);
 
+    const users = assignments.map((assignment) => assignment.Officer).filter(Boolean);
     return { users, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
   }
 

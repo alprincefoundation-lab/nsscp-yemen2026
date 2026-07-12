@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React from "react";
 
 interface Note {
     id: string;
@@ -15,15 +15,6 @@ interface CaseNotesProps {
 }
 
 export function CaseNotes({ caseId, notes = [], isLoading }: CaseNotesProps) {
-    const [newNote, setNewNote] = useState('');
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!newNote.trim()) return;
-        // TODO: integrate with notes API
-        setNewNote('');
-    };
-
     if (isLoading) {
         return (
             <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
@@ -81,26 +72,6 @@ export function CaseNotes({ caseId, notes = [], isLoading }: CaseNotesProps) {
                     ))
                 )}
             </div>
-
-            {/* Add Note Form */}
-            <form onSubmit={handleSubmit} className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                <textarea
-                    value={newNote}
-                    onChange={(e) => setNewNote(e.target.value)}
-                    placeholder="أضف ملاحظة..."
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                />
-                <div className="flex justify-end mt-2">
-                    <button
-                        type="submit"
-                        disabled={!newNote.trim()}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-                    >
-                        إضافة
-                    </button>
-                </div>
-            </form>
         </div>
     );
 }

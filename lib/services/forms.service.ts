@@ -1,15 +1,187 @@
+import { Prisma } from '@prisma/client'
+import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/prisma'
-import {
-  FormTemplate,
-  FormSubmission,
-  FormField,
-  FormAttachment,
-} from '@prisma/client'
-import { z } from 'zod'
+import { createAuditLog } from '@/lib/core/audit-engine'
 
-// ============================================================================
-// FORM TEMPLATE OPERATIONS
-// ============================================================================
+type FormFieldRecord = {
+  id: string
+  formTemplateId: string
+  fieldName: string
+  displayLabel: string
+  fieldType: string
+  required: boolean
+  order: number
+  options?: string | null
+  validation?: string | null
+  placeholder?: string | null
+}
+
+type FormTemplateRecord = {
+  id: string
+  name: string
+  displayName: string
+  description?: string | null
+  formType: string
+  departmentId?: string | null
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
+  fields: FormFieldRecord[]
+}
+
+type FormAttachmentRecord = {
+  id: string
+  submissionId: string
+  fileName: string
+  fileUrl: string
+  fileSize: bigint
+  mimeType: string
+  uploadedBy: string
+}
+
+type FormSignatureRecord = {
+  id: string
+  submissionId: string
+  signedBy: string
+  signatureData: string
+  signatureRole: string
+  signedAt: Date
+}
+
+type FormApprovalRecord = {
+  id: string
+  submissionId: string
+  requiredRole: string
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  approvedBy?: string
+  approvalDate?: Date
+  rejectionReason?: string
+  comments?: string
+  createdAt: Date
+}
+
+type FormSubmissionRecord = {
+  id: string
+  templateId: string
+  submittedBy: string
+  departmentId: string
+  formData: Record<string, unknown>
+  relatedEntityId?: string | null
+  relatedEntityType?: string | null
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DRAFT'
+  approvedBy?: string | null
+  approvedAt?: Date | null
+  rejectionReason?: string | null
+  isDeleted: boolean
+  createdAt: Date
+  updatedAt: Date
+  attachments: FormAttachmentRecord[]
+  signatures: FormSignatureRecord[]
+  approvals: FormApprovalRecord[]
+}
+
+function now(): Date {
+  return new Date()
+}
+
+function createId(prefix: string): string {
+  return `${prefix}_${randomUUID()}`
+}
+
+function normalizeFileSize(fileSize: bigint | number): number {
+  return Number(fileSize)
+}
+
+function buildTemplateView(template: { fields: FormFieldRecord[] } & Omit<FormTemplateRecord, 'fields'>) {
+  return {
+    ...template,
+    fields: template.fields.slice().sort((a, b) => a.order - b.order),
+    department: null,
+  }
+}
+
+async function buildSubmissionView(submission: {
+  id: string
+  templateId: string
+  submittedBy: string
+  departmentId: string
+  formData: Prisma.JsonValue
+  relatedEntityId?: string | null
+  relatedEntityType?: string | null
+  status: string
+  approvedBy?: string | null
+  approvedAt?: Date | null
+  rejectionReason?: string | null
+  isDeleted: boolean
+  createdAt: Date
+  updatedAt: Date
+  attachments: Array<{
+    id: string
+    submissionId: string
+    fileName: string
+    fileUrl: string
+    fileSize: bigint
+    mimeType: string
+    uploadedBy: string
+  }>
+  signatures: Array<{
+    id: string
+    submissionId: string
+    signedBy: string
+    signatureData: string
+    signatureRole: string
+    signedAt: Date
+  }>
+  approvals: Array<{
+    id: string
+    submissionId: string
+    requiredRole: string
+    status: string
+    approvedBy?: string | null
+    approvalDate?: Date | null
+    rejectionReason?: string | null
+    comments?: string | null
+    createdAt: Date
+  }>
+}) {
+  const template = await prisma.formTemplate.findUnique({
+    where: { id: submission.templateId },
+    include: { fields: true },
+  })
+
+  return {
+    ...submission,
+    template: template ? buildTemplateView(template) : null,
+    user: {
+      id: submission.submittedBy,
+      username: submission.submittedBy,
+      fullName: submission.submittedBy,
+    },
+    department: { id: submission.departmentId, name: submission.departmentId },
+    attachments: submission.attachments.map((attachment) => ({
+      ...attachment,
+      fileSize: normalizeFileSize(attachment.fileSize),
+    })),
+    signatures: submission.signatures.map((signature) => ({
+      ...signature,
+      user: {
+        id: signature.signedBy,
+        username: signature.signedBy,
+        fullName: signature.signedBy,
+      },
+    })),
+    approvals: submission.approvals.map((approval) => ({
+      ...approval,
+      approvingUser: approval.approvedBy
+        ? {
+            id: approval.approvedBy,
+            username: approval.approvedBy,
+            fullName: approval.approvedBy,
+          }
+        : null,
+    })),
+  }
+}
 
 export async function createFormTemplate(data: {
   name: string
@@ -28,48 +200,73 @@ export async function createFormTemplate(data: {
     placeholder?: string
   }>
 }) {
-  const template = await prisma.formTemplate.create({
-    data: {
-      name: data.name,
-      displayName: data.displayName,
-      description: data.description,
-      formType: data.formType,
-      departmentId: data.departmentId,
-      fields: {
-        create: data.fields,
+  const template = await prisma.$transaction(async (tx) => {
+    const created = await tx.formTemplate.create({
+      data: {
+        id: createId('ft'),
+        name: data.name,
+        displayName: data.displayName,
+        description: data.description ?? null,
+        formType: data.formType,
+        departmentId: data.departmentId ?? null,
+        isActive: true,
       },
-    },
-    include: { fields: { orderBy: { order: 'asc' } } },
+      include: { fields: true },
+    })
+
+    if (data.fields.length > 0) {
+      await tx.formField.createMany({
+        data: data.fields.map((field) => ({
+          id: createId('ff'),
+          formTemplateId: created.id,
+          fieldName: field.fieldName,
+          displayLabel: field.displayLabel,
+          fieldType: field.fieldType,
+          required: field.required ?? false,
+          order: field.order,
+          options: field.options ?? null,
+          validation: field.validation ?? null,
+          placeholder: field.placeholder ?? null,
+        })),
+      })
+    }
+
+    await tx.auditLog.create({
+      data: {
+        action: 'CREATE',
+        entityType: 'FORM_TEMPLATE',
+        entityId: created.id,
+        officerId: null,
+        details: {
+          name: data.name,
+          formType: data.formType,
+        } as Prisma.InputJsonValue,
+      },
+    })
+
+    return tx.formTemplate.findUniqueOrThrow({
+      where: { id: created.id },
+      include: { fields: true },
+    })
   })
-  return template
+
+  return buildTemplateView(template)
 }
 
 export async function getFormTemplate(templateId: string) {
   const template = await prisma.formTemplate.findUnique({
     where: { id: templateId },
-    include: {
-      fields: {
-        orderBy: { order: 'asc' },
-      },
-      department: true,
-    },
+    include: { fields: true },
   })
-  return template
+  return template ? buildTemplateView(template) : null
 }
 
 export async function getFormTemplateByType(formType: string) {
   const template = await prisma.formTemplate.findFirst({
-    where: {
-      formType,
-      isActive: true,
-    },
-    include: {
-      fields: {
-        orderBy: { order: 'asc' },
-      },
-    },
+    where: { formType, isActive: true },
+    include: { fields: true },
   })
-  return template
+  return template ? buildTemplateView(template) : null
 }
 
 export async function listFormTemplates(filters?: {
@@ -79,21 +276,16 @@ export async function listFormTemplates(filters?: {
 }) {
   const templates = await prisma.formTemplate.findMany({
     where: {
-      ...(filters?.formType && { formType: filters.formType }),
-      ...(filters?.departmentId && { departmentId: filters.departmentId }),
-      ...(filters?.isActive !== undefined && { isActive: filters.isActive }),
+      ...(filters?.formType ? { formType: filters.formType } : {}),
+      ...(filters?.departmentId ? { departmentId: filters.departmentId } : {}),
+      ...(filters?.isActive !== undefined ? { isActive: filters.isActive } : {}),
     },
-    include: {
-      fields: { orderBy: { order: 'asc' } },
-    },
+    include: { fields: true },
     orderBy: { createdAt: 'desc' },
   })
-  return templates
-}
 
-// ============================================================================
-// FORM SUBMISSION OPERATIONS
-// ============================================================================
+  return templates.map(buildTemplateView)
+}
 
 export async function createFormSubmission(data: {
   templateId: string
@@ -103,58 +295,51 @@ export async function createFormSubmission(data: {
   relatedEntityId?: string
   relatedEntityType?: string
 }) {
+  const template = await prisma.formTemplate.findUnique({ where: { id: data.templateId } })
+  if (!template) {
+    throw new Error('Form template not found')
+  }
+
   const submission = await prisma.formSubmission.create({
     data: {
+      id: createId('fs'),
       templateId: data.templateId,
       submittedBy: data.submittedBy,
       departmentId: data.departmentId,
-      formData: data.formData,
-      relatedEntityId: data.relatedEntityId,
-      relatedEntityType: data.relatedEntityType,
+      formData: data.formData as Prisma.InputJsonValue,
+      relatedEntityId: data.relatedEntityId ?? null,
+      relatedEntityType: data.relatedEntityType ?? null,
+      status: 'PENDING',
+      isDeleted: false,
     },
     include: {
-      template: true,
-      user: true,
-      department: true,
       attachments: true,
       signatures: true,
       approvals: true,
     },
   })
 
-  // Create audit log
-  await prisma.auditLog.create({
-    data: {
-      userId: data.submittedBy,
-      action: 'CREATE',
-      resourceType: 'FormSubmission',
-      resourceId: submission.id,
-      newValue: JSON.stringify(submission),
-    },
+  await createAuditLog({
+    action: 'CREATE',
+    entityType: 'FORM_SUBMISSION',
+    entityId: submission.id,
+    userId: data.submittedBy,
+    details: { templateId: data.templateId, departmentId: data.departmentId },
   })
 
-  return submission
+  return buildSubmissionView(submission)
 }
 
 export async function getFormSubmission(submissionId: string) {
-  const submission = await prisma.formSubmission.findUnique({
-    where: { id: submissionId },
+  const submission = await prisma.formSubmission.findFirst({
+    where: { id: submissionId, isDeleted: false },
     include: {
-      template: {
-        include: { fields: { orderBy: { order: 'asc' } } },
-      },
-      user: true,
-      department: true,
       attachments: true,
-      signatures: {
-        include: { user: true },
-      },
-      approvals: {
-        include: { approvingUser: true },
-      },
+      signatures: true,
+      approvals: true,
     },
   })
-  return submission
+  return submission ? buildSubmissionView(submission) : null
 }
 
 export async function updateFormSubmission(
@@ -164,44 +349,49 @@ export async function updateFormSubmission(
     status?: string
     approvedBy?: string
     rejectionReason?: string
-  }
+  },
 ) {
-  const oldSubmission = await prisma.formSubmission.findUnique({
-    where: { id: submissionId },
+  const submission = await prisma.formSubmission.findFirst({
+    where: { id: submissionId, isDeleted: false },
+    include: {
+      attachments: true,
+      signatures: true,
+      approvals: true,
+    },
   })
+  if (!submission) {
+    throw new Error('Form submission not found')
+  }
 
-  const submission = await prisma.formSubmission.update({
+  const oldSnapshot = await buildSubmissionView(submission)
+
+  const updated = await prisma.formSubmission.update({
     where: { id: submissionId },
     data: {
-      ...(data.formData && { formData: data.formData }),
-      ...(data.status && { status: data.status }),
-      ...(data.approvedBy && {
-        approvedBy: data.approvedBy,
-        approvedAt: new Date(),
-      }),
-      ...(data.rejectionReason && { rejectionReason: data.rejectionReason }),
+      ...(data.formData ? { formData: data.formData as Prisma.InputJsonValue } : {}),
+      ...(data.status ? { status: data.status } : {}),
+      ...(data.approvedBy ? { approvedBy: data.approvedBy, approvedAt: now() } : {}),
+      ...(data.rejectionReason ? { rejectionReason: data.rejectionReason } : {}),
     },
     include: {
-      template: true,
-      user: true,
-      department: true,
       attachments: true,
+      signatures: true,
+      approvals: true,
     },
   })
 
-  // Create audit log
-  await prisma.auditLog.create({
-    data: {
-      userId: data.approvedBy || 'system',
-      action: 'UPDATE',
-      resourceType: 'FormSubmission',
-      resourceId: submissionId,
-      oldValue: JSON.stringify(oldSubmission),
-      newValue: JSON.stringify(submission),
+  await createAuditLog({
+    action: 'UPDATE',
+    entityType: 'FORM_SUBMISSION',
+    entityId: submissionId,
+    userId: data.approvedBy || 'system',
+    details: {
+      oldValue: oldSnapshot,
+      newValue: await buildSubmissionView(updated),
     },
   })
 
-  return submission
+  return buildSubmissionView(updated)
 }
 
 export async function listFormSubmissions(filters?: {
@@ -215,31 +405,25 @@ export async function listFormSubmissions(filters?: {
 }) {
   const submissions = await prisma.formSubmission.findMany({
     where: {
-      ...(filters?.templateId && { templateId: filters.templateId }),
-      ...(filters?.departmentId && { departmentId: filters.departmentId }),
-      ...(filters?.submittedBy && { submittedBy: filters.submittedBy }),
-      ...(filters?.status && { status: filters.status }),
-      ...(filters?.relatedEntityId && {
-        relatedEntityId: filters.relatedEntityId,
-      }),
       isDeleted: false,
+      ...(filters?.templateId ? { templateId: filters.templateId } : {}),
+      ...(filters?.departmentId ? { departmentId: filters.departmentId } : {}),
+      ...(filters?.submittedBy ? { submittedBy: filters.submittedBy } : {}),
+      ...(filters?.status ? { status: filters.status } : {}),
+      ...(filters?.relatedEntityId ? { relatedEntityId: filters.relatedEntityId } : {}),
     },
     include: {
-      template: true,
-      user: true,
-      department: true,
       attachments: true,
+      signatures: true,
+      approvals: true,
     },
     orderBy: { createdAt: 'desc' },
     skip: filters?.skip || 0,
     take: filters?.take || 50,
   })
-  return submissions
-}
 
-// ============================================================================
-// FORM ATTACHMENT OPERATIONS
-// ============================================================================
+  return Promise.all(submissions.map(buildSubmissionView))
+}
 
 export async function addFormAttachment(data: {
   submissionId: string
@@ -251,6 +435,7 @@ export async function addFormAttachment(data: {
 }) {
   const attachment = await prisma.formAttachment.create({
     data: {
+      id: createId('fa'),
       submissionId: data.submissionId,
       fileName: data.fileName,
       fileUrl: data.fileUrl,
@@ -259,12 +444,9 @@ export async function addFormAttachment(data: {
       uploadedBy: data.uploadedBy,
     },
   })
+
   return attachment
 }
-
-// ============================================================================
-// FORM SIGNATURE OPERATIONS
-// ============================================================================
 
 export async function addFormSignature(data: {
   submissionId: string
@@ -274,20 +456,24 @@ export async function addFormSignature(data: {
 }) {
   const signature = await prisma.formSignature.create({
     data: {
+      id: createId('fsig'),
       submissionId: data.submissionId,
       signedBy: data.signedBy,
       signatureData: data.signatureData,
       signatureRole: data.signatureRole,
-      signedAt: new Date(),
+      signedAt: now(),
     },
-    include: { user: true },
   })
-  return signature
-}
 
-// ============================================================================
-// FORM APPROVAL OPERATIONS
-// ============================================================================
+  return {
+    ...signature,
+    user: {
+      id: data.signedBy,
+      username: data.signedBy,
+      fullName: data.signedBy,
+    },
+  }
+}
 
 export async function getPendingApprovals(filters?: {
   requiredRole?: string
@@ -298,24 +484,36 @@ export async function getPendingApprovals(filters?: {
   const approvals = await prisma.formApproval.findMany({
     where: {
       status: 'PENDING',
-      ...(filters?.requiredRole && { requiredRole: filters.requiredRole }),
-      ...(filters?.submissionId && { submissionId: filters.submissionId }),
+      ...(filters?.requiredRole ? { requiredRole: filters.requiredRole } : {}),
+      ...(filters?.submissionId ? { submissionId: filters.submissionId } : {}),
     },
     include: {
       submission: {
         include: {
-          template: true,
-          user: true,
-          department: true,
+          attachments: true,
+          signatures: true,
+          approvals: true,
         },
       },
-      approvingUser: true,
     },
     orderBy: { createdAt: 'asc' },
     skip: filters?.skip || 0,
     take: filters?.take || 50,
   })
-  return approvals
+
+  return Promise.all(
+    approvals.map(async (approval) => ({
+      ...approval,
+      submission: approval.submission ? await buildSubmissionView(approval.submission) : null,
+      approvingUser: approval.approvedBy
+        ? {
+            id: approval.approvedBy,
+            username: approval.approvedBy,
+            fullName: approval.approvedBy,
+          }
+        : null,
+    })),
+  )
 }
 
 export async function approveFormSubmission(
@@ -324,43 +522,44 @@ export async function approveFormSubmission(
     approvedBy: string
     approvalDate?: Date
     comments?: string
-  }
+  },
 ) {
   const submission = await prisma.formSubmission.update({
     where: { id: submissionId },
     data: {
       status: 'APPROVED',
       approvedBy: approvalData.approvedBy,
-      approvedAt: approvalData.approvalDate || new Date(),
+      approvedAt: approvalData.approvalDate || now(),
+    },
+    include: {
+      attachments: true,
+      signatures: true,
+      approvals: true,
     },
   })
 
-  // Update all related approvals to approved
   await prisma.formApproval.updateMany({
     where: { submissionId, status: 'PENDING' },
     data: {
       status: 'APPROVED',
       approvedBy: approvalData.approvedBy,
-      approvalDate: new Date(),
-      comments: approvalData.comments,
+      approvalDate: approvalData.approvalDate || now(),
+      comments: approvalData.comments ?? null,
     },
   })
 
-  // Create audit log
-  await prisma.auditLog.create({
-    data: {
-      userId: approvalData.approvedBy,
-      action: 'WORKFLOW_APPROVAL',
-      resourceType: 'FormSubmission',
-      resourceId: submissionId,
-      newValue: JSON.stringify({
-        status: 'APPROVED',
-        approvedBy: approvalData.approvedBy,
-      }),
+  await createAuditLog({
+    action: 'WORKFLOW_APPROVAL',
+    entityType: 'FORM_SUBMISSION',
+    entityId: submissionId,
+    userId: approvalData.approvedBy,
+    details: {
+      status: 'APPROVED',
+      approvedBy: approvalData.approvedBy,
     },
   })
 
-  return submission
+  return buildSubmissionView(submission)
 }
 
 export async function rejectFormSubmission(
@@ -369,7 +568,7 @@ export async function rejectFormSubmission(
     rejectedBy: string
     rejectionReason: string
     comments?: string
-  }
+  },
 ) {
   const submission = await prisma.formSubmission.update({
     where: { id: submissionId },
@@ -377,34 +576,35 @@ export async function rejectFormSubmission(
       status: 'REJECTED',
       rejectionReason: rejectData.rejectionReason,
     },
+    include: {
+      attachments: true,
+      signatures: true,
+      approvals: true,
+    },
   })
 
-  // Update related approvals to rejected
   await prisma.formApproval.updateMany({
     where: { submissionId, status: 'PENDING' },
     data: {
       status: 'REJECTED',
       approvedBy: rejectData.rejectedBy,
-      approvalDate: new Date(),
+      approvalDate: now(),
       rejectionReason: rejectData.rejectionReason,
-      comments: rejectData.comments,
+      comments: rejectData.comments ?? null,
     },
   })
 
-  // Create audit log
-  await prisma.auditLog.create({
-    data: {
-      userId: rejectData.rejectedBy,
-      action: 'WORKFLOW_APPROVAL',
-      resourceType: 'FormSubmission',
-      resourceId: submissionId,
-      newValue: JSON.stringify({
-        status: 'REJECTED',
-        rejectedBy: rejectData.rejectedBy,
-        rejectionReason: rejectData.rejectionReason,
-      }),
+  await createAuditLog({
+    action: 'WORKFLOW_APPROVAL',
+    entityType: 'FORM_SUBMISSION',
+    entityId: submissionId,
+    userId: rejectData.rejectedBy,
+    details: {
+      status: 'REJECTED',
+      rejectedBy: rejectData.rejectedBy,
+      rejectionReason: rejectData.rejectionReason,
     },
   })
 
-  return submission
+  return buildSubmissionView(submission)
 }

@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
+import { cookies } from 'next/headers'
 import { prisma } from './prisma'
+import { getSession } from './auth/session-manager'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-min-32-chars-required'
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'default-refresh-secret-min-32-chars'
@@ -9,16 +11,20 @@ const JWT_REFRESH_EXPIRATION = process.env.JWT_REFRESH_EXPIRATION || '7d'
 
 export interface JWTPayload {
   id: string
-  email: string
-  militaryId: string
+  role: string
   roles: string[]
+  rank?: string
+  department?: string
+  fullName?: string
 }
 
 export interface DecodedToken {
   id: string
-  email: string
-  militaryId: string
+  role: string
   roles: string[]
+  rank?: string
+  department?: string
+  fullName?: string
   iat: number
   exp: number
 }
@@ -95,22 +101,21 @@ export function verifyRefreshToken(token: string): DecodedToken | null {
  * Create tokens for a user
  */
 export async function createTokens(userId: string) {
-  const user = await prisma.user.findUnique({
+  const officer = await prisma.officer.findUnique({
     where: { id: userId },
-    include: {
-      roles: true,
-    },
   })
 
-  if (!user) {
-    throw new Error('User not found')
+  if (!officer) {
+    throw new Error('Officer not found')
   }
 
   const payload: JWTPayload = {
-    id: user.id,
-    email: user.email,
-    militaryId: user.militaryId,
-    roles: user.roles.map((r) => r.name),
+    id: officer.id,
+    role: officer.role,
+    roles: [officer.role],
+    rank: officer.rank,
+    department: officer.department,
+    fullName: officer.name,
   }
 
   return {
@@ -143,76 +148,93 @@ export async function hasPermission(
   resource: string,
   action: string
 ): Promise<boolean> {
-  const user = await prisma.user.findUnique({
+  const officer = await prisma.officer.findUnique({
     where: { id: userId },
-    include: {
-      roles: {
-        include: {
-          permissions: true,
-        },
-      },
-      permissions: true,
-    },
   })
 
-  if (!user) {
+  if (!officer) {
     return false
   }
 
-  // Check direct user permissions
-  if (
-    user.permissions.some((p) => p.resource === resource && p.action === action)
-  ) {
+  if (officer.role === 'SUPER_ADMIN') {
     return true
   }
 
-  // Check role permissions
-  for (const role of user.roles) {
-    if (
-      role.permissions.some((p) => p.resource === resource && p.action === action)
-    ) {
-      return true
-    }
+  const privilegedRoles = new Set(['GOVERNORATE_ADMIN', 'DEPARTMENT_MANAGER', 'SECTION_MANAGER'])
+  if (!privilegedRoles.has(officer.role)) {
+    return action === 'READ'
   }
 
-  return false
+  return action !== 'DELETE' || resource === 'AuditLog'
 }
 
 /**
  * Get user with all roles and permissions
  */
 export async function getUserWithPermissions(userId: string) {
-  return prisma.user.findUnique({
+  const officer = await prisma.officer.findUnique({
     where: { id: userId },
-    include: {
-      roles: {
-        include: {
-          permissions: true,
-        },
-      },
-      permissions: true,
-    },
   })
+
+  if (!officer) {
+    return null
+  }
+
+  return {
+    id: officer.id,
+    username: officer.name,
+    role: officer.role,
+    roles: [{ name: officer.role, permissions: [] as never[] }],
+    permissions: [] as never[],
+  }
 }
 
 /**
  * Get authenticated user from request (Mock for now to fix build)
  */
-export async function getAuthenticatedUser(req: any) {
-  // In a real scenario, this would verify the JWT from headers
-  // For now, we return a system user or throw unauthorized to allow build to proceed
-  const authHeader = req.headers.get('authorization')
-  const token = extractTokenFromHeader(authHeader)
-  if (!token) return null
-  
-  const decoded = verifyAccessToken(token)
-  if (!decoded) return null
-  
-  return prisma.user.findUnique({
-    where: { id: decoded.id },
-    include: {
-      roles: true,
-      department: true
+export async function getAuthenticatedUser(req?: any) {
+  const authHeader = req?.headers?.get?.('authorization') ?? null
+  let token = extractTokenFromHeader(authHeader)
+
+  if (!token) {
+    token = req?.cookies?.get?.('nsscp_session')?.value ?? null
+  }
+
+  if (!token) {
+    try {
+      token = (await cookies()).get('nsscp_session')?.value ?? null
+    } catch {
+      token = null
     }
+  }
+
+  if (!token) return null
+
+  const activeSession = await getSession(token)
+  if (!activeSession) {
+    return null
+  }
+
+  const officer = await prisma.officer.findUnique({
+    where: { id: activeSession.userId },
   })
+
+  if (!officer) {
+    return null
+  }
+
+  return {
+    id: officer.id,
+    username: officer.name,
+    role: officer.role,
+    roles: [officer.role],
+    badgeNumber: officer.id,
+    rank: officer.rank,
+    fullName: officer.name,
+    departmentId: null,
+    department: officer.department ? { nameAr: officer.department } : null,
+    hierarchyEntityId: activeSession.hierarchyEntityId ?? null,
+    hierarchyEntityName: officer.department || null,
+    hierarchyEntityType: activeSession.hierarchyEntityType ?? 'OFFICER',
+  }
 }

@@ -21,9 +21,10 @@ export async function GET(request: NextRequest) {
     if (status) where.status = status;
     if (search) {
       where.OR = [
-        { firstName: { contains: search, mode: 'insensitive' } },
-        { lastName: { contains: search, mode: 'insensitive' } },
-        { aliasNames: { has: search } },
+        { fullName: { contains: search, mode: 'insensitive' } },
+        { identityNumber: { contains: search, mode: 'insensitive' } },
+        { chargeDetails: { contains: search, mode: 'insensitive' } },
+        { issuingProvince: { contains: search, mode: 'insensitive' } },
       ];
     }
 
@@ -58,25 +59,19 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { fullName, ...rest } = body;
 
-    // تقسيم الاسم الكامل إلى اسم أول واسم عائلة تلقائياً ليتوافق مع السكيما
-    const names = (fullName || '').trim().split(/\s+/);
-    const firstName = names[0] || 'غير معروف';
-    const lastName = names.slice(1).join(' ') || 'غير معروف';
-
     const newWanted = await prisma.wantedPerson.create({
       data: {
         ...rest,
-        firstName,
-        lastName,
+        fullName: fullName || 'غير معروف',
       },
     });
 
     await createAuditLog({
       action: 'CREATE',
       entityType: 'WANTED_PERSON',
-      entityId: newWanted.id,
+      entityId: String(newWanted.id),
       userId: user.id,
-      details: { firstName, lastName, fullName: fullName || `${firstName} ${lastName}` },
+      details: { fullName: newWanted.fullName },
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
     });
@@ -97,28 +92,24 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json();
     const { id, fullName, ...rest } = body;
+    const wantedId = typeof id === 'string' ? parseInt(id, 10) : id;
 
-    if (!id) {
+    if (!wantedId || Number.isNaN(wantedId)) {
       return NextResponse.json({ error: 'المعرف الخاص بالمطلوب مطلوب' }, { status: 400 });
     }
 
     const updateData: any = { ...rest };
-
-    if (fullName) {
-      const names = fullName.trim().split(/\s+/);
-      updateData.firstName = names[0] || '';
-      updateData.lastName = names.slice(1).join(' ') || '';
-    }
+    if (fullName) updateData.fullName = fullName;
 
     const updated = await prisma.wantedPerson.update({
-      where: { id },
+      where: { id: wantedId },
       data: updateData,
     });
 
     await createAuditLog({
       action: 'UPDATE',
       entityType: 'WANTED_PERSON',
-      entityId: updated.id,
+      entityId: String(updated.id),
       userId: user.id,
       details: { updatedFields: Object.keys(updateData) },
       ipAddress: meta.ipAddress,
@@ -140,14 +131,15 @@ export async function DELETE(request: NextRequest) {
     const meta = extractRequestMeta(request);
 
     const { searchParams } = new URL(request.url);
-    let id = searchParams.get('id');
+    const rawId = searchParams.get('id');
+    let id = rawId ? parseInt(rawId, 10) : undefined;
 
     if (!id) {
       const body = await request.json().catch(() => ({}));
-      id = body.id;
+      id = typeof body.id === 'string' ? parseInt(body.id, 10) : body.id;
     }
 
-    if (!id) {
+    if (!id || Number.isNaN(id)) {
       return NextResponse.json({ error: 'المعرف مطلوب للحذف' }, { status: 400 });
     }
 
@@ -159,9 +151,9 @@ export async function DELETE(request: NextRequest) {
     await createAuditLog({
       action: 'DELETE',
       entityType: 'WANTED_PERSON',
-      entityId: id,
+      entityId: String(id),
       userId: user.id,
-      details: existing ? { firstName: existing.firstName, lastName: existing.lastName } : { id },
+      details: existing ? { fullName: existing.fullName } : { id },
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
     });

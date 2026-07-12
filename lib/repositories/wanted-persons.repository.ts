@@ -6,33 +6,52 @@ export class WantedPersonRepository {
     return prisma.wantedPerson.create({ data })
   }
 
-  async findById(id: string): Promise<WantedPerson | null> {
+  private normalizeId(id: string | number): number {
+    const numericId = typeof id === 'number' ? id : Number(id)
+    if (!Number.isInteger(numericId) || numericId <= 0) {
+      throw new Error('Invalid wanted person id')
+    }
+    return numericId
+  }
+
+  async findById(id: string | number): Promise<WantedPerson | null> {
     return prisma.wantedPerson.findUnique({
-      where: { id },
+      where: { id: this.normalizeId(id) },
+      include: {
+        WantedAttachment: true,
+        Circular: true,
+      },
     })
   }
 
-  async findByNumber(wantedNumber: string): Promise<WantedPerson | null> {
+  async findByIdentityNumber(identityNumber: string): Promise<WantedPerson | null> {
     return prisma.wantedPerson.findUnique({
-      where: { wantedNumber },
+      where: { identityNumber },
+      include: {
+        WantedAttachment: true,
+        Circular: true,
+      },
     })
   }
 
   async findAll(filters?: {
     status?: string
-    severity?: string
-    domesticStatus?: string
-    internationalNotice?: string
+    dangerLevel?: string
+    query?: string
     skip?: number
     take?: number
   }): Promise<{ data: WantedPerson[]; total: number }> {
     const where: Prisma.WantedPersonWhereInput = {
-      isDeleted: false,
       ...(filters?.status && { status: filters.status }),
-      ...(filters?.severity && { severity: filters.severity }),
-      ...(filters?.domesticStatus && { domesticStatus: filters.domesticStatus }),
-      ...(filters?.internationalNotice && {
-        internationalNotice: filters.internationalNotice,
+      ...(filters?.dangerLevel && { dangerLevel: filters.dangerLevel }),
+      ...(filters?.query && {
+        OR: [
+          { fullName: { contains: filters.query, mode: 'insensitive' } },
+          { identityNumber: { contains: filters.query, mode: 'insensitive' } },
+          { nationality: { contains: filters.query, mode: 'insensitive' } },
+          { chargeDetails: { contains: filters.query, mode: 'insensitive' } },
+          { issuingProvince: { contains: filters.query, mode: 'insensitive' } },
+        ],
       }),
     }
 
@@ -42,6 +61,10 @@ export class WantedPersonRepository {
         skip: filters?.skip || 0,
         take: filters?.take || 50,
         orderBy: { createdAt: 'desc' },
+        include: {
+          WantedAttachment: true,
+          Circular: true,
+        },
       }),
       prisma.wantedPerson.count({ where }),
     ])
@@ -52,15 +75,16 @@ export class WantedPersonRepository {
   async search(query: string): Promise<WantedPerson[]> {
     return prisma.wantedPerson.findMany({
       where: {
-        isDeleted: false,
         OR: [
-          { firstName: { contains: query, mode: 'insensitive' } },
-          { lastName: { contains: query, mode: 'insensitive' } },
-          { wantedNumber: { contains: query, mode: 'insensitive' } },
-          { nationalId: { contains: query, mode: 'insensitive' } },
+          { fullName: { contains: query, mode: 'insensitive' } },
+          { identityNumber: { contains: query, mode: 'insensitive' } },
+          { nationality: { contains: query, mode: 'insensitive' } },
+          { chargeDetails: { contains: query, mode: 'insensitive' } },
+          { issuingProvince: { contains: query, mode: 'insensitive' } },
         ],
       },
       take: 20,
+      orderBy: { createdAt: 'desc' },
     })
   }
 
@@ -69,21 +93,24 @@ export class WantedPersonRepository {
     data: Prisma.WantedPersonUpdateInput
   ): Promise<WantedPerson> {
     return prisma.wantedPerson.update({
-      where: { id },
-      data: { ...data, updatedAt: new Date() },
+      where: { id: this.normalizeId(id) },
+      data,
     })
   }
 
   async delete(id: string): Promise<void> {
     await prisma.wantedPerson.update({
-      where: { id },
-      data: { isDeleted: true, deletedAt: new Date() },
+      where: { id: this.normalizeId(id) },
+      data: { status: 'ARCHIVED' },
     })
   }
 
   async findBySeverity(severity: string): Promise<WantedPerson[]> {
+    const normalizedSeverities =
+      severity === 'CRITICAL' ? ['CRITICAL', 'عالي جداً'] : [severity]
+
     return prisma.wantedPerson.findMany({
-      where: { severity, isDeleted: false, status: 'ACTIVE' },
+      where: { dangerLevel: { in: normalizedSeverities } },
       orderBy: { createdAt: 'desc' },
     })
   }
@@ -91,16 +118,22 @@ export class WantedPersonRepository {
   async findByInternationalNotice(notice: string): Promise<WantedPerson[]> {
     return prisma.wantedPerson.findMany({
       where: {
-        internationalNotice: notice,
-        isDeleted: false,
+        Circular: {
+          some: {
+            type: notice,
+          },
+        },
+      },
+      include: {
+        Circular: true,
       },
     })
   }
 
   async updateStatus(id: string, status: string): Promise<WantedPerson> {
     return prisma.wantedPerson.update({
-      where: { id },
-      data: { status, updatedAt: new Date() },
+      where: { id: this.normalizeId(id) },
+      data: { status },
     })
   }
 
@@ -108,59 +141,84 @@ export class WantedPersonRepository {
     id: string,
     noticeType: string
   ): Promise<WantedPerson> {
-    return prisma.wantedPerson.update({
-      where: { id },
-      data: {
-        internationalNotice: noticeType,
-        updatedAt: new Date(),
+    const wantedPersonId = this.normalizeId(id)
+    await prisma.circular.upsert({
+      where: {
+        circularNumber: `NOTICE-${wantedPersonId}-${noticeType}`,
+      },
+      create: {
+        circularNumber: `NOTICE-${wantedPersonId}-${noticeType}`,
+        title: `International notice for wanted person ${wantedPersonId}`,
+        description: `Generated notice of type ${noticeType}`,
+        type: noticeType,
+        priority: 'HIGH',
+        status: 'ACTIVE',
+        issuedDate: new Date(),
+        issuingAuthority: 'NSSCP',
+        wantedPersonId,
+      },
+      update: {
+        title: `International notice for wanted person ${wantedPersonId}`,
+        description: `Generated notice of type ${noticeType}`,
+        type: noticeType,
+        priority: 'HIGH',
+        status: 'ACTIVE',
+        issuedDate: new Date(),
+        issuingAuthority: 'NSSCP',
+        wantedPersonId,
       },
     })
-  }
 
-  async updateLastSeen(
-    id: string,
-    location: string,
-    date: Date
-  ): Promise<WantedPerson> {
-    return prisma.wantedPerson.update({
-      where: { id },
-      data: {
-        lastSeenLocation: location,
-        lastSeenDate: date,
-        updatedAt: new Date(),
-      },
-    })
+    const wantedPerson = await this.findById(wantedPersonId)
+    if (!wantedPerson) {
+      throw new Error('Wanted person not found after notice creation')
+    }
+
+    return wantedPerson
   }
 
   async getStatistics(): Promise<{
     total: number
     active: number
     captured: number
-    deceased: number
+    archived: number
     critical: number
     withInternationalNotice: number
   }> {
-    const [total, active, captured, deceased, critical, international] =
+    const [total, active, captured, archived, critical, international] =
       await Promise.all([
-        prisma.wantedPerson.count({ where: { isDeleted: false } }),
+        prisma.wantedPerson.count(),
         prisma.wantedPerson.count({
-          where: { isDeleted: false, status: 'ACTIVE' },
+          where: { status: 'مطلوب حياً' },
         }),
         prisma.wantedPerson.count({
-          where: { isDeleted: false, domesticStatus: 'CAPTURED' },
+          where: { status: 'مقبوض عليه' },
         }),
         prisma.wantedPerson.count({
-          where: { isDeleted: false, domesticStatus: 'DECEASED' },
+          where: { status: 'ARCHIVED' },
         }),
         prisma.wantedPerson.count({
-          where: { isDeleted: false, severity: 'CRITICAL' },
+          where: {
+            dangerLevel: { in: ['CRITICAL', 'عالي جداً'] },
+          },
         }),
         prisma.wantedPerson.count({
-          where: { isDeleted: false, internationalNotice: { not: null } },
+          where: {
+            Circular: {
+              some: {},
+            },
+          },
         }),
       ])
 
-    return { total, active, captured, deceased, critical, withInternationalNotice: international }
+    return {
+      total,
+      active,
+      captured,
+      archived,
+      critical,
+      withInternationalNotice: international,
+    }
   }
 }
 

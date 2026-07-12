@@ -7,9 +7,12 @@ export default defineConfig([
   ...nextTs,
   globalIgnores([
     '.next/**',
+    '**/.next/**',
     'out/**',
     'build/**',
     'next-env.d.ts',
+    '.claude/**',
+    '_archive_unused/**',
   ]),
   {
     rules: {

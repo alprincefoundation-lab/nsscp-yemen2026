@@ -122,10 +122,6 @@ export function CaseAttachments({ caseId, attachments = [], isLoading }: CaseAtt
                 </div>
             )}
 
-            {/* Upload placeholder - integrates with existing upload API */}
-            <button className="mt-4 w-full px-4 py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:border-blue-500 hover:text-blue-500 transition-colors">
-                + إضافة مرفق
-            </button>
         </div>
     );
 }

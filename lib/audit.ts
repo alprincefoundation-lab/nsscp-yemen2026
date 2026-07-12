@@ -1,24 +1,26 @@
 import { prisma } from '@/lib/prisma'
 
 interface AuditLogInput {
-  userId: string
-  userRole: string
+  officerId: string
   action: string
-  resourceType: string
-  resourceId: string
+  entityType: string
+  entityId: string
   changes?: any
+  ipAddress?: string
+  userAgent?: string
 }
 
 export async function logAudit(data: AuditLogInput) {
   try {
     await prisma.auditLog.create({
       data: {
-        userId: data.userId,
-        userRole: data.userRole,
+        officerId: data.officerId,
         action: data.action,
-        resourceType: data.resourceType,
-        resourceId: data.resourceId,
-        changes: data.changes,
+        entityType: data.entityType,
+        entityId: data.entityId,
+        details: data.changes,
+        ipAddress: data.ipAddress,
+        userAgent: data.userAgent,
       },
     })
   } catch (error) {

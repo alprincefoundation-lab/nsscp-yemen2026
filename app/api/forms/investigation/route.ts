@@ -1,10 +1,7 @@
 export const dynamic = 'force-dynamic'
 
+import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import {
-  createFormSubmission,
-  getFormTemplateByType,
-} from '@/lib/services/forms.service'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
@@ -31,6 +28,219 @@ const InvestigationFormSchema = z.object({
   signatureDate: z.string().optional(),
 })
 
+type DynamicFormRow = {
+  id: string
+  name: string
+  code: string | null
+  hierarchyEntityId: string
+  description: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+type FormSubmissionRow = {
+  id: string
+  templateId: string
+  data: unknown
+  submittedBy: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+function escapeSqlLiteral(value: string): string {
+  return value.replace(/'/g, "''")
+}
+
+function sqlValue(value: string | null | undefined): string {
+  if (value === null || value === undefined || value === '') {
+    return 'NULL'
+  }
+
+  return `'${escapeSqlLiteral(value)}'`
+}
+
+function sqlJson(value: unknown): string {
+  return `'${escapeSqlLiteral(JSON.stringify(value))}'::jsonb`
+}
+
+async function getInvestigationTemplate(): Promise<DynamicFormRow | null> {
+  const rows = await prisma.$queryRawUnsafe<DynamicFormRow[]>(`
+    SELECT
+      "id",
+      "name",
+      "code",
+      "hierarchyEntityId",
+      "description",
+      "createdAt",
+      "updatedAt"
+    FROM "DynamicForm"
+    WHERE "code" = 'INVESTIGATION' OR "name" = 'investigation_form'
+    ORDER BY "createdAt" DESC
+    LIMIT 1
+  `)
+
+  return rows[0] ?? null
+}
+
+async function createInvestigationTemplate(hierarchyEntityId: string): Promise<DynamicFormRow> {
+  const templateId = randomUUID()
+  const now = new Date().toISOString()
+
+  await prisma.$executeRawUnsafe(`
+    INSERT INTO "DynamicForm" (
+      "id",
+      "name",
+      "code",
+      "hierarchyEntityId",
+      "description",
+      "createdAt",
+      "updatedAt"
+    ) VALUES (
+      ${sqlValue(templateId)},
+      'investigation_form',
+      'INVESTIGATION',
+      ${sqlValue(hierarchyEntityId)},
+      ${sqlValue('استمارة توثيق التحقيقات في الشكاوى والجرائم')},
+      ${sqlValue(now)},
+      ${sqlValue(now)}
+    )
+  `)
+
+  const fieldRows = [
+    ['investigationNumber', 'رقم التحقيق', 'TEXT', false, 1],
+    ['startDate', 'تاريخ بدء التحقيق', 'DATE', true, 2],
+    ['investigatorName', 'اسم المحقق المسؤول', 'TEXT', true, 3],
+    ['investigatorId', 'رقم الهوية للمحقق', 'TEXT', true, 4],
+    ['suspectName', 'اسم المشتبه به', 'TEXT', true, 5],
+    ['suspectIdentity', 'رقم الهوية (أو جواز السفر) للمشتبه به', 'TEXT', true, 6],
+    ['suspectBirthDate', 'تاريخ الميلاد للمشتبه به', 'DATE', true, 7],
+    ['suspectAddress', 'عنوان المشتبه به', 'TEXT', true, 8],
+    ['suspectPhone', 'رقم الهاتف للمشتبه به', 'TEXT', false, 9],
+    ['crimeType', 'نوع الشكوى أو الجريمة', 'SELECT', true, 10],
+    ['crimeDescription', 'تفاصيل الشكوى أو الجريمة', 'TEXTAREA', true, 11],
+    ['crimeLocation', 'مكان وقوع الجريمة أو الشكوى', 'TEXT', true, 12],
+    ['crimeDate', 'تاريخ وقوع الجريمة أو الشكوى', 'DATE', true, 13],
+    ['crimeTime', 'وقت وقوع الجريمة أو الشكوى', 'TEXT', false, 14],
+    ['availableEvidence', 'الأدلة المتاحة', 'TEXTAREA', false, 15],
+    ['witnesses', 'الشهود', 'TEXTAREA', false, 16],
+    ['actionsTaken', 'الإجراءات المتخذة', 'TEXTAREA', false, 17],
+    ['notes', 'الملاحظات', 'TEXTAREA', false, 18],
+    ['investigatorSignature', 'توقيع المحقق المسؤول', 'SIGNATURE', false, 19],
+  ] as const
+
+  for (const [name, label, type, required, sortOrder] of fieldRows) {
+    const options =
+      name === 'crimeType'
+        ? [
+            { value: 'THEFT', label: 'سرقة' },
+            { value: 'ASSAULT', label: 'اعتداء' },
+            { value: 'MURDER', label: 'قتل' },
+            { value: 'FRAUD', label: 'احتيال' },
+            { value: 'DRUGS', label: 'تجارة مخدرات' },
+            { value: 'CYBER_CRIME', label: 'جرائم إلكترونية' },
+            { value: 'HARASSMENT', label: 'تحرش' },
+            { value: 'OTHER', label: 'أخرى' },
+          ]
+        : null
+
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO "DynamicField" (
+        "id",
+        "formId",
+        "name",
+        "label",
+        "type",
+        "required",
+        "options",
+        "sortOrder",
+        "placeholder",
+        "validationRules",
+        "createdAt",
+        "updatedAt"
+      ) VALUES (
+        ${sqlValue(randomUUID())},
+        ${sqlValue(templateId)},
+        ${sqlValue(name)},
+        ${sqlValue(label)},
+        ${sqlValue(type)},
+        ${required ? 'TRUE' : 'FALSE'},
+        ${options ? sqlJson(options) : 'NULL'},
+        ${sortOrder},
+        NULL,
+        NULL,
+        ${sqlValue(now)},
+        ${sqlValue(now)}
+      )
+    `)
+  }
+
+  return {
+    id: templateId,
+    name: 'investigation_form',
+    code: 'INVESTIGATION',
+    hierarchyEntityId,
+    description: 'استمارة توثيق التحقيقات في الشكاوى والجرائم',
+    createdAt: new Date(now),
+    updatedAt: new Date(now),
+  }
+}
+
+async function createSubmission(args: {
+  templateId: string
+  submittedBy: string
+  departmentId: string
+  formData: unknown
+}): Promise<FormSubmissionRow> {
+  const submissionId = randomUUID()
+  const now = new Date().toISOString()
+
+  await prisma.$executeRawUnsafe(`
+    INSERT INTO "FormSubmission" (
+      "id",
+      "templateId",
+      "data",
+      "submittedBy",
+      "createdAt",
+      "updatedAt"
+    ) VALUES (
+      ${sqlValue(submissionId)},
+      ${sqlValue(args.templateId)},
+      ${sqlJson({
+        ...((args.formData as Record<string, unknown>) || {}),
+        departmentId: args.departmentId,
+      })},
+      ${sqlValue(args.submittedBy)},
+      ${sqlValue(now)},
+      ${sqlValue(now)}
+    )
+  `)
+
+  const rows = await prisma.$queryRawUnsafe<FormSubmissionRow[]>(`
+    SELECT
+      "id",
+      "templateId",
+      "data",
+      "submittedBy",
+      "createdAt",
+      "updatedAt"
+    FROM "FormSubmission"
+    WHERE "id" = ${sqlValue(submissionId)}
+    LIMIT 1
+  `)
+
+  return rows[0] ?? {
+    id: submissionId,
+    templateId: args.templateId,
+    data: {
+      ...(args.formData as Record<string, unknown>),
+      departmentId: args.departmentId,
+    },
+    submittedBy: args.submittedBy,
+    createdAt: new Date(now),
+    updatedAt: new Date(now),
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const userId = request.headers.get('x-user-id')
@@ -46,176 +256,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = InvestigationFormSchema.parse(body)
 
-    // Get or create investigation form template
-    let template = await getFormTemplateByType('INVESTIGATION')
-
+    let template = await getInvestigationTemplate()
     if (!template) {
-      // Create template if it doesn't exist
-      template = await prisma.formTemplate.create({
-        data: {
-          name: 'investigation_form',
-          displayName: 'نموذج استمارة التحقيقات',
-          formType: 'INVESTIGATION',
-          description: 'استمارة توثيق التحقيقات في الشكاوى والجرائم',
-          fields: {
-            create: [
-              {
-                fieldName: 'investigationNumber',
-                displayLabel: 'رقم التحقيق',
-                fieldType: 'TEXT',
-                required: false,
-                order: 1,
-              },
-              {
-                fieldName: 'startDate',
-                displayLabel: 'تاريخ بدء التحقيق',
-                fieldType: 'DATE',
-                required: true,
-                order: 2,
-              },
-              {
-                fieldName: 'investigatorName',
-                displayLabel: 'اسم المحقق المسؤول',
-                fieldType: 'TEXT',
-                required: true,
-                order: 3,
-              },
-              {
-                fieldName: 'investigatorId',
-                displayLabel: 'رقم الهوية للمحقق',
-                fieldType: 'TEXT',
-                required: true,
-                order: 4,
-              },
-              {
-                fieldName: 'suspectName',
-                displayLabel: 'اسم المشتبه به',
-                fieldType: 'TEXT',
-                required: true,
-                order: 5,
-              },
-              {
-                fieldName: 'suspectIdentity',
-                displayLabel: 'رقم الهوية (أو جواز السفر) للمشتبه به',
-                fieldType: 'TEXT',
-                required: true,
-                order: 6,
-              },
-              {
-                fieldName: 'suspectBirthDate',
-                displayLabel: 'تاريخ الميلاد للمشتبه به',
-                fieldType: 'DATE',
-                required: true,
-                order: 7,
-              },
-              {
-                fieldName: 'suspectAddress',
-                displayLabel: 'عنوان المشتبه به',
-                fieldType: 'TEXT',
-                required: true,
-                order: 8,
-              },
-              {
-                fieldName: 'suspectPhone',
-                displayLabel: 'رقم الهاتف للمشتبه به',
-                fieldType: 'TEXT',
-                required: false,
-                order: 9,
-              },
-              {
-                fieldName: 'crimeType',
-                displayLabel: 'نوع الشكوى أو الجريمة',
-                fieldType: 'SELECT',
-                required: true,
-                order: 10,
-                options: JSON.stringify([
-                  { value: 'THEFT', label: 'سرقة' },
-                  { value: 'ASSAULT', label: 'اعتداء' },
-                  { value: 'MURDER', label: 'قتل' },
-                  { value: 'FRAUD', label: 'احتيال' },
-                  { value: 'DRUGS', label: 'تجارة مخدرات' },
-                  { value: 'CYBER_CRIME', label: 'جرائم إلكترونية' },
-                  { value: 'HARASSMENT', label: 'تحرش' },
-                  { value: 'OTHER', label: 'أخرى' },
-                ]),
-              },
-              {
-                fieldName: 'crimeDescription',
-                displayLabel: 'تفاصيل الشكوى أو الجريمة',
-                fieldType: 'TEXTAREA',
-                required: true,
-                order: 11,
-              },
-              {
-                fieldName: 'crimeLocation',
-                displayLabel: 'مكان وقوع الجريمة أو الشكوى',
-                fieldType: 'TEXT',
-                required: true,
-                order: 12,
-              },
-              {
-                fieldName: 'crimeDate',
-                displayLabel: 'تاريخ وقوع الجريمة أو الشكوى',
-                fieldType: 'DATE',
-                required: true,
-                order: 13,
-              },
-              {
-                fieldName: 'crimeTime',
-                displayLabel: 'وقت وقوع الجريمة أو الشكوى',
-                fieldType: 'TEXT',
-                required: false,
-                order: 14,
-              },
-              {
-                fieldName: 'availableEvidence',
-                displayLabel: 'الأدلة المتاحة',
-                fieldType: 'TEXTAREA',
-                required: false,
-                order: 15,
-              },
-              {
-                fieldName: 'witnesses',
-                displayLabel: 'الشهود',
-                fieldType: 'TEXTAREA',
-                required: false,
-                order: 16,
-              },
-              {
-                fieldName: 'actionsTaken',
-                displayLabel: 'الإجراءات المتخذة',
-                fieldType: 'TEXTAREA',
-                required: false,
-                order: 17,
-              },
-              {
-                fieldName: 'notes',
-                displayLabel: 'الملاحظات',
-                fieldType: 'TEXTAREA',
-                required: false,
-                order: 18,
-              },
-              {
-                fieldName: 'investigatorSignature',
-                displayLabel: 'توقيع المحقق المسؤول',
-                fieldType: 'SIGNATURE',
-                required: false,
-                order: 19,
-              },
-            ],
-          },
-        },
-        include: { fields: true },
-      })
+      template = await createInvestigationTemplate(departmentId)
     }
 
-    // Create submission
-    const submission = await createFormSubmission({
+    const submission = await createSubmission({
       templateId: template.id,
       submittedBy: userId,
       departmentId,
       formData: validatedData,
-      relatedEntityType: 'INVESTIGATION',
     })
 
     return NextResponse.json(

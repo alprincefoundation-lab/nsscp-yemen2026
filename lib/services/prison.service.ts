@@ -1,9 +1,116 @@
+import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/prisma'
-import { Prisoner, Cell } from '@prisma/client'
+import { createAuditLog } from '@/lib/core/audit-engine'
 
-// ============================================================================
-// PRISONER OPERATIONS
-// ============================================================================
+type PrisonerView = Awaited<ReturnType<typeof buildPrisonerView>>
+type CellView = Awaited<ReturnType<typeof buildCellView>>
+
+function now(): Date {
+  return new Date()
+}
+
+function createId(prefix: string): string {
+  return `${prefix}_${randomUUID()}`
+}
+
+async function getCellPrisoners(cellId: string) {
+  return prisma.prisoner.findMany({
+    where: { currentCellId: cellId },
+    select: {
+      id: true,
+      prisonerId: true,
+      fullName: true,
+      status: true,
+    },
+  })
+}
+
+async function buildCellView(cell: {
+  id: string
+  cellNumber: string
+  block: string
+  capacity: number
+  cellType: string
+  departmentId?: string | null
+  status: string
+  occupancy: number
+  createdAt: Date
+  updatedAt: Date
+}) {
+  return {
+    ...cell,
+    prisoners: await getCellPrisoners(cell.id),
+  }
+}
+
+async function buildPrisonerView(prisoner: {
+  id: string
+  prisonerId: string
+  fullName: string
+  dateOfBirth: Date
+  gender: string
+  nationality: string
+  idNumber: string
+  crimeType: string
+  sentenceLength?: number | null
+  sentenceStartDate: Date
+  estimatedReleaseDate?: Date | null
+  currentCellId?: string | null
+  bookingDate: Date
+  arrestReason: string
+  departmentId?: string | null
+  status: string
+  actualReleaseDate?: Date | null
+  createdAt: Date
+  updatedAt: Date
+}) {
+  const currentCell = prisoner.currentCellId
+    ? await prisma.cell.findUnique({
+        where: { id: prisoner.currentCellId },
+        include: {
+          prisoners: {
+            select: {
+              id: true,
+              prisonerId: true,
+              fullName: true,
+              status: true,
+            },
+          },
+        },
+      })
+    : null
+
+  const disciplinaryRecords = await prisma.disciplinaryRecord.findMany({
+    where: { prisonerId: prisoner.id },
+    orderBy: { recordDate: 'desc' },
+    take: 10,
+  })
+
+  const medicalRecords = await prisma.medicalRecord.findMany({
+    where: { prisonerId: prisoner.id },
+    orderBy: { examinationDate: 'desc' },
+    take: 10,
+  })
+
+  const visitorLogs = await prisma.visitorLog.findMany({
+    where: { prisonerId: prisoner.id },
+    orderBy: { visitDate: 'desc' },
+    take: 10,
+  })
+
+  return {
+    ...prisoner,
+    currentCell: currentCell
+      ? {
+          ...currentCell,
+          prisoners: currentCell.prisoners,
+        }
+      : null,
+    disciplinaryRecords,
+    medicalRecords,
+    visitorLogs,
+  }
+}
 
 export async function registerPrisoner(data: {
   prisonerId: string
@@ -21,68 +128,61 @@ export async function registerPrisoner(data: {
   arrestReason: string
   departmentId?: string
 }) {
-  const prisoner = await prisma.prisoner.create({
-    data: {
-      prisonerId: data.prisonerId,
-      fullName: data.fullName,
-      dateOfBirth: data.dateOfBirth,
-      gender: data.gender,
-      nationality: data.nationality,
-      idNumber: data.idNumber,
-      crimeType: data.crimeType,
-      sentenceLength: data.sentenceLength,
-      sentenceStartDate: data.sentenceStartDate,
-      estimatedReleaseDate: data.estimatedReleaseDate,
-      currentCellId: data.currentCellId,
-      bookingDate: data.bookingDate,
-      arrestReason: data.arrestReason,
-      departmentId: data.departmentId,
-      status: 'ACTIVE',
-    },
-    include: {
-      currentCell: true,
-      disciplinaryRecords: true,
-      medicalRecords: true,
-    },
+  const prisoner = await prisma.$transaction(async (tx) => {
+    const created = await tx.prisoner.create({
+      data: {
+        id: createId('prisoner'),
+        prisonerId: data.prisonerId,
+        fullName: data.fullName,
+        dateOfBirth: data.dateOfBirth,
+        gender: data.gender,
+        nationality: data.nationality,
+        idNumber: data.idNumber,
+        crimeType: data.crimeType,
+        sentenceLength: data.sentenceLength ?? null,
+        sentenceStartDate: data.sentenceStartDate,
+        estimatedReleaseDate: data.estimatedReleaseDate ?? null,
+        currentCellId: data.currentCellId ?? null,
+        bookingDate: data.bookingDate,
+        arrestReason: data.arrestReason,
+        departmentId: data.departmentId ?? null,
+        status: 'ACTIVE',
+      },
+    })
+
+    if (created.currentCellId) {
+      const occupancy = await tx.prisoner.count({ where: { currentCellId: created.currentCellId } })
+      await tx.cell.update({
+        where: { id: created.currentCellId },
+        data: {
+          occupancy,
+        },
+      })
+    }
+
+    await tx.auditLog.create({
+      data: {
+        action: 'CREATE',
+        entityType: 'PRISONER',
+        entityId: created.id,
+        officerId: 'system',
+        details: {
+          prisonerId: data.prisonerId,
+          fullName: data.fullName,
+          crimeType: data.crimeType,
+        } as never,
+      },
+    })
+
+    return created
   })
 
-  // Create audit log
-  await prisma.auditLog.create({
-    data: {
-      userId: 'system',
-      action: 'CREATE',
-      resourceType: 'Prisoner',
-      resourceId: prisoner.id,
-    },
-  })
-
-  return prisoner
+  return buildPrisonerView(prisoner)
 }
 
 export async function getPrisoner(prisonerId: string) {
-  const prisoner = await prisma.prisoner.findUnique({
-    where: { id: prisonerId },
-    include: {
-      currentCell: {
-        include: {
-          prisoners: true,
-        },
-      },
-      disciplinaryRecords: {
-        orderBy: { createdAt: 'desc' },
-        take: 10,
-      },
-      medicalRecords: {
-        orderBy: { createdAt: 'desc' },
-        take: 10,
-      },
-      visitorLogs: {
-        orderBy: { visitDate: 'desc' },
-        take: 10,
-      },
-    },
-  })
-  return prisoner
+  const prisoner = await prisma.prisoner.findUnique({ where: { id: prisonerId } })
+  return prisoner ? buildPrisonerView(prisoner) : null
 }
 
 export async function listPrisoners(filters?: {
@@ -95,19 +195,17 @@ export async function listPrisoners(filters?: {
 }) {
   const prisoners = await prisma.prisoner.findMany({
     where: {
-      ...(filters?.status && { status: filters.status }),
-      ...(filters?.crimeType && { crimeType: filters.crimeType }),
-      ...(filters?.departmentId && { departmentId: filters.departmentId }),
-      ...(filters?.currentCellId && { currentCellId: filters.currentCellId }),
-    },
-    include: {
-      currentCell: true,
+      ...(filters?.status ? { status: filters.status } : {}),
+      ...(filters?.crimeType ? { crimeType: filters.crimeType } : {}),
+      ...(filters?.departmentId ? { departmentId: filters.departmentId } : {}),
+      ...(filters?.currentCellId ? { currentCellId: filters.currentCellId } : {}),
     },
     orderBy: { bookingDate: 'desc' },
     skip: filters?.skip || 0,
     take: filters?.take || 50,
   })
-  return prisoners
+
+  return Promise.all(prisoners.map(buildPrisonerView))
 }
 
 export async function updatePrisonerStatus(
@@ -116,31 +214,33 @@ export async function updatePrisonerStatus(
   updatedBy: string,
   releaseDate?: Date
 ) {
-  const prisoner = await prisma.prisoner.update({
-    where: { id: prisonerId },
-    data: {
-      status,
-      ...(releaseDate && { actualReleaseDate: releaseDate }),
-    },
+  const prisoner = await prisma.$transaction(async (tx) => {
+    const updated = await tx.prisoner.update({
+      where: { id: prisonerId },
+      data: {
+        status,
+        ...(releaseDate ? { actualReleaseDate: releaseDate } : {}),
+      },
+    })
+
+    await tx.auditLog.create({
+      data: {
+        action: 'UPDATE',
+        entityType: 'PRISONER',
+        entityId: prisonerId,
+        officerId: updatedBy,
+        details: {
+          status,
+          releaseDate: releaseDate || null,
+        } as never,
+      },
+    })
+
+    return updated
   })
 
-  // Create audit log
-  await prisma.auditLog.create({
-    data: {
-      userId: updatedBy,
-      action: 'UPDATE',
-      resourceType: 'Prisoner',
-      resourceId: prisonerId,
-      newValue: JSON.stringify({ status, releaseDate }),
-    },
-  })
-
-  return prisoner
+  return buildPrisonerView(prisoner)
 }
-
-// ============================================================================
-// CELL OPERATIONS
-// ============================================================================
 
 export async function createCell(data: {
   cellNumber: string
@@ -151,36 +251,25 @@ export async function createCell(data: {
 }) {
   const cell = await prisma.cell.create({
     data: {
+      id: createId('cell'),
       cellNumber: data.cellNumber,
       block: data.block,
       capacity: data.capacity,
       cellType: data.cellType,
-      departmentId: data.departmentId,
+      departmentId: data.departmentId ?? null,
       status: 'OPERATIONAL',
       occupancy: 0,
     },
-    include: {
-      prisoners: true,
-    },
   })
-  return cell
+
+  return buildCellView(cell)
 }
 
 export async function getCell(cellId: string) {
   const cell = await prisma.cell.findUnique({
     where: { id: cellId },
-    include: {
-      prisoners: {
-        select: {
-          id: true,
-          prisonerId: true,
-          fullName: true,
-          status: true,
-        },
-      },
-    },
   })
-  return cell
+  return cell ? buildCellView(cell) : null
 }
 
 export async function listCells(filters?: {
@@ -190,17 +279,13 @@ export async function listCells(filters?: {
 }) {
   const cells = await prisma.cell.findMany({
     where: {
-      ...(filters?.block && { block: filters.block }),
-      ...(filters?.status && { status: filters.status }),
-      ...(filters?.departmentId && { departmentId: filters.departmentId }),
-    },
-    include: {
-      prisoners: {
-        select: { id: true, fullName: true, status: true },
-      },
+      ...(filters?.block ? { block: filters.block } : {}),
+      ...(filters?.status ? { status: filters.status } : {}),
+      ...(filters?.departmentId ? { departmentId: filters.departmentId } : {}),
     },
   })
-  return cells
+
+  return Promise.all(cells.map(buildCellView))
 }
 
 export async function transferPrisonerToCell(
@@ -208,38 +293,49 @@ export async function transferPrisonerToCell(
   cellId: string,
   transferredBy: string
 ) {
-  // Get prisoner and new cell
   const prisoner = await prisma.prisoner.findUnique({
     where: { id: prisonerId },
     select: { currentCellId: true },
   })
 
-  // Update prisoner cell
-  const updated = await prisma.prisoner.update({
-    where: { id: prisonerId },
-    data: { currentCellId: cellId },
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.prisoner.update({
+      where: { id: prisonerId },
+      data: { currentCellId: cellId },
+    })
+
+    if (prisoner?.currentCellId) {
+      const previousOccupancy = await tx.prisoner.count({ where: { currentCellId: prisoner.currentCellId } })
+      await tx.cell.update({
+        where: { id: prisoner.currentCellId },
+        data: { occupancy: previousOccupancy },
+      })
+    }
+
+    const newOccupancy = await tx.prisoner.count({ where: { currentCellId: cellId } })
+    await tx.cell.update({
+      where: { id: cellId },
+      data: { occupancy: newOccupancy },
+    })
+
+    await tx.auditLog.create({
+      data: {
+        action: 'UPDATE',
+        entityType: 'PRISONER',
+        entityId: prisonerId,
+        officerId: transferredBy,
+        details: {
+          previousCellId: prisoner?.currentCellId,
+          newCellId: cellId,
+        } as never,
+      },
+    })
+
+    return result
   })
 
-  // Create audit log
-  await prisma.auditLog.create({
-    data: {
-      userId: transferredBy,
-      action: 'UPDATE',
-      resourceType: 'Prisoner',
-      resourceId: prisonerId,
-      newValue: JSON.stringify({
-        previousCellId: prisoner?.currentCellId,
-        newCellId: cellId,
-      }),
-    },
-  })
-
-  return updated
+  return buildPrisonerView(updated)
 }
-
-// ============================================================================
-// DISCIPLINARY RECORD OPERATIONS
-// ============================================================================
 
 export async function addDisciplinaryRecord(data: {
   prisonerId: string
@@ -256,27 +352,25 @@ export async function addDisciplinaryRecord(data: {
       description: data.description,
       severity: data.severity,
       recordedBy: data.recordedBy,
-      actionTaken: data.actionTaken,
-      recordDate: new Date(),
+      actionTaken: data.actionTaken ?? null,
+      recordDate: now(),
     },
   })
 
-  // Create audit log
-  await prisma.auditLog.create({
-    data: {
-      userId: data.recordedBy,
-      action: 'CREATE',
-      resourceType: 'DisciplinaryRecord',
-      resourceId: record.id,
+  await createAuditLog({
+    action: 'CREATE',
+    entityType: 'PRISONER',
+    entityId: data.prisonerId,
+    userId: data.recordedBy,
+    details: {
+      recordType: 'DisciplinaryRecord',
+      violationType: data.violationType,
+      severity: data.severity,
     },
   })
 
   return record
 }
-
-// ============================================================================
-// MEDICAL RECORD OPERATIONS
-// ============================================================================
 
 export async function addMedicalRecord(data: {
   prisonerId: string
@@ -285,23 +379,17 @@ export async function addMedicalRecord(data: {
   treatment?: string
   followUpRequired?: boolean
 }) {
-  const record = await prisma.medicalRecord.create({
+  return prisma.medicalRecord.create({
     data: {
       prisonerId: data.prisonerId,
       description: data.description,
       medicalStaff: data.medicalStaff,
-      treatment: data.treatment,
+      treatment: data.treatment ?? null,
       followUpRequired: data.followUpRequired || false,
-      examinationDate: new Date(),
+      examinationDate: now(),
     },
   })
-
-  return record
 }
-
-// ============================================================================
-// VISITOR LOG OPERATIONS
-// ============================================================================
 
 export async function logVisitor(data: {
   prisonerId: string
@@ -311,24 +399,22 @@ export async function logVisitor(data: {
   duration?: number
   purpose?: string
 }) {
-  const log = await prisma.visitorLog.create({
+  return prisma.visitorLog.create({
     data: {
       prisonerId: data.prisonerId,
       visitorName: data.visitorName,
       visitorRelation: data.visitorRelation,
       visitDate: data.visitDate,
-      duration: data.duration,
-      purpose: data.purpose,
+      duration: data.duration ?? null,
+      purpose: data.purpose ?? null,
     },
   })
-  return log
 }
 
 export async function getPrisonerVisitors(prisonerId: string, limit = 20) {
-  const visitors = await prisma.visitorLog.findMany({
+  return prisma.visitorLog.findMany({
     where: { prisonerId },
     orderBy: { visitDate: 'desc' },
     take: limit,
   })
-  return visitors
 }

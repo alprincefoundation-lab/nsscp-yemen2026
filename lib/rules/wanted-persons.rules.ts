@@ -1,7 +1,7 @@
 export class WantedPersonsBusinessRules {
   // Severity escalation rules
   static canEscalateSeverity(currentSeverity: string, newSeverity: string): boolean {
-    const hierarchy = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 }
+    const hierarchy: Record<string, number> = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 }
     return hierarchy[newSeverity] > hierarchy[currentSeverity]
   }
 
@@ -29,7 +29,7 @@ export class WantedPersonsBusinessRules {
     RELEASED: [],
     CONVICTED: [],
     DECEASED: [],
-  }
+  } as Record<string, string[]>
 
   static canTransitionStatus(from: string, to: string): boolean {
     return this.allowedStatusTransitions[from]?.includes(to) ?? false

@@ -55,10 +55,10 @@ export default function StatsOverview({ stats, isLoading = false }: StatsOvervie
         criticalAlerts: 0,
         activeUsers: 0,
         activeSessions: 0,
-        systemUptime: '00:00:00',
+        systemUptime: 'غير متاح',
         lastUpdated: new Date().toISOString(),
-        departmentCount: 19,
-        governorateCount: 22,
+        departmentCount: 0,
+        governorateCount: 0,
     };
 
     const data = stats || defaultStats;

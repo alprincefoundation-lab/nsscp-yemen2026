@@ -3,11 +3,11 @@ import { prisma } from '@/lib/prisma'
 export class WantedPersonsReports {
   static async generateSummaryReport(startDate: Date, endDate: Date) {
     const totalWanted = await prisma.wantedPerson.count()
-    const captured = await prisma.wantedPerson.count({ where: { status: 'CAPTURED' } })
-    const active = await prisma.wantedPerson.count({ where: { status: 'ACTIVE' } })
-    
+    const captured = await prisma.wantedPerson.count({ where: { status: 'مقبوض عليه' } })
+    const active = await prisma.wantedPerson.count({ where: { status: 'مطلوب حياً' } })
+
     const bySeverity = await prisma.wantedPerson.groupBy({
-      by: ['severity'],
+      by: ['dangerLevel'],
       _count: { id: true },
     })
 
@@ -19,7 +19,7 @@ export class WantedPersonsReports {
         active,
         captureRate: (captured / totalWanted) * 100,
       },
-      bySeverity: bySeverity.map(s => ({ severity: s.severity, count: s._count.id })),
+      bySeverity: bySeverity.map((s) => ({ severity: s.dangerLevel, count: s._count.id })),
     }
   }
 
@@ -27,10 +27,13 @@ export class WantedPersonsReports {
     const startDate = new Date()
     startDate.setMonth(startDate.getMonth() - monthsBack)
 
-    const captures = await prisma.captureRecord.findMany({
-      where: { captureDate: { gte: startDate } },
-      include: { wantedPerson: true },
-      orderBy: { captureDate: 'desc' },
+    const captures = await prisma.wantedPerson.findMany({
+      where: {
+        status: 'مقبوض عليه',
+        createdAt: { gte: startDate },
+      },
+      include: { Circular: true, WantedAttachment: true },
+      orderBy: { createdAt: 'desc' },
     })
 
     return {
@@ -44,7 +47,7 @@ export class WantedPersonsReports {
   private static groupCapturesByMonth(captures: any[]) {
     const grouped: any = {}
     captures.forEach(c => {
-      const month = c.captureDate.toISOString().substring(0, 7)
+      const month = c.createdAt.toISOString().substring(0, 7)
       grouped[month] = (grouped[month] || 0) + 1
     })
     return grouped
@@ -53,7 +56,8 @@ export class WantedPersonsReports {
   private static getTopCapturingOfficers(captures: any[]) {
     const officers: any = {}
     captures.forEach(c => {
-      officers[c.capturedBy] = (officers[c.capturedBy] || 0) + 1
+      officers[c.issuingAuthority ?? 'UNKNOWN'] =
+        (officers[c.issuingAuthority ?? 'UNKNOWN'] || 0) + 1
     })
     return Object.entries(officers)
       .map(([officer, count]) => ({ officer, captures: count }))
@@ -62,9 +66,10 @@ export class WantedPersonsReports {
   }
 
   static async generateInternationalNoticeReport() {
-    const notices = await prisma.internationalNotice.findMany({
+    const notices = await prisma.circular.findMany({
+      where: { type: { contains: 'NOTICE', mode: 'insensitive' } },
       include: { wantedPerson: true },
-      orderBy: { publishDate: 'desc' },
+      orderBy: { issuedDate: 'desc' },
     })
 
     return {
@@ -77,7 +82,7 @@ export class WantedPersonsReports {
   private static groupNoticesByType(notices: any[]) {
     const grouped: any = {}
     notices.forEach(n => {
-      grouped[n.noticeType] = (grouped[n.noticeType] || 0) + 1
+      grouped[n.type] = (grouped[n.type] || 0) + 1
     })
     return grouped
   }

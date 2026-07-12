@@ -119,7 +119,6 @@ export function useStableMemo<T>(factory: () => T, deps: unknown[], namespace: s
   const cache = getOrCreateCache<T>(namespace);
   const depKey = createDependencyKey(deps);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const value = useMemo(() => {
     const cached = cache.get(depKey);
     if (cached) {
@@ -144,7 +143,6 @@ export function useStableCallback<TArgs extends unknown[], TReturn>(
     callbackRef.current = callback;
   });
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   return useCallback((...args: TArgs) => {
     return callbackRef.current(...args);
   }, []);

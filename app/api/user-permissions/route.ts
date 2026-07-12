@@ -1,28 +1,19 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/jwt';
+import { getAuthenticatedUser } from '@/lib/auth';
 import { getRolePermissions, Permission } from '@/lib/permissions';
 
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('nsscp_session')?.value;
-
-    if (!token) {
+    const user = await getAuthenticatedUser();
+    if (!user) {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
     }
 
-    const payload = verifyToken(token);
-    if (!payload) {
-      return NextResponse.json({ error: 'الجلسة منتهية' }, { status: 401 });
-    }
-
-    // Get permissions for the user's role
-    const permissions = getRolePermissions(payload.role as any);
+    const permissions = getRolePermissions(user.role as any);
 
     return NextResponse.json({
       permissions: permissions,
-      role: payload.role,
+      role: user.role,
     });
   } catch (error) {
     console.error('User Permissions Error:', error);

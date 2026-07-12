@@ -6,93 +6,158 @@
  * Hierarchy-scoped: nodeId=GLOBAL returns all; specific nodeId returns scoped data.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { apiGuard } from '@/lib/hierarchy/guard';
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { apiGuard } from '@/lib/hierarchy/guard'
+
+type IncidentRow = {
+  id: string
+  incidentNumber: string
+  title: string
+  description: string | null
+  type: string
+  status: string
+  location: string | null
+  createdAt: Date
+  hierarchyEntityId: string | null
+}
+
+type PatrolRow = {
+  id: string
+  patrolNumber: string
+  name: string
+  type: string
+  status: string
+  startTime: Date
+  endTime: Date | null
+  location: string | null
+  hierarchyEntityId: string | null
+}
+
+function escapeSqlLiteral(value: string): string {
+  return value.replace(/'/g, "''")
+}
+
+function sqlValue(value: string | null | undefined): string {
+  if (value === null || value === undefined || value === '') {
+    return 'NULL'
+  }
+
+  return `'${escapeSqlLiteral(value)}'`
+}
+
+function buildHierarchyClause(nodeId: string, descendantIds: string[]) {
+  const scopedIds = [nodeId, ...descendantIds].map(sqlValue).join(', ')
+  return scopedIds ? `WHERE "hierarchyEntityId" IN (${scopedIds})` : ''
+}
+
+async function loadIncidents(whereClause: string): Promise<IncidentRow[]> {
+  const statusClause = whereClause ? `${whereClause} AND` : 'WHERE'
+
+  return prisma.$queryRawUnsafe<IncidentRow[]>(`
+    SELECT
+      "id",
+      "incidentNumber",
+      "title",
+      "description",
+      "type",
+      "status",
+      "location",
+      "createdAt",
+      "hierarchyEntityId"
+    FROM "Incident"
+    ${statusClause} "status" IN ('REPORTED', 'UNDER_INVESTIGATION')
+    ORDER BY "createdAt" DESC
+    LIMIT 200
+  `)
+}
+
+async function loadPatrols(whereClause: string): Promise<PatrolRow[]> {
+  const statusClause = whereClause ? `${whereClause} AND` : 'WHERE'
+
+  return prisma.$queryRawUnsafe<PatrolRow[]>(`
+    SELECT
+      "id",
+      "patrolNumber",
+      "name",
+      "type",
+      "status",
+      "startTime",
+      "endTime",
+      "location",
+      "hierarchyEntityId"
+    FROM "Patrol"
+    ${statusClause} "status" = 'ACTIVE'
+    ORDER BY "createdAt" DESC
+    LIMIT 100
+  `)
+}
 
 export async function GET(request: NextRequest) {
   try {
-    const guard = await apiGuard(request);
-    if ('error' in guard) return guard.error;
+    const guard = await apiGuard(request)
+    if ('error' in guard) return guard.error
 
-    const { searchParams } = new URL(request.url);
-    const nodeId = searchParams.get('nodeId') || 'GLOBAL';
-    const layers = (searchParams.get('layers') || 'incidents').split(',');
+    const { searchParams } = new URL(request.url)
+    const nodeId = searchParams.get('nodeId') || 'GLOBAL'
+    const layers = (searchParams.get('layers') || 'incidents').split(',')
 
-    // Build hierarchy scope
-    let hierarchyWhere: Record<string, unknown> = {};
+    let whereClause = ''
     if (nodeId !== 'GLOBAL') {
-      const canAccess = await guard.engine.canAccessHierarchy(nodeId);
+      const canAccess = await guard.engine.canAccessHierarchy(nodeId)
       if (!canAccess) {
         return NextResponse.json(
           { error: 'Not authorized for this hierarchy node' },
-          { status: 403 },
-        );
+          { status: 403 }
+        )
       }
-      const descendantIds = await guard.engine.getDescendantIds();
-      hierarchyWhere = { departmentId: { in: descendantIds } };
+
+      const descendantIds = await guard.engine.getDescendantIds()
+      whereClause = buildHierarchyClause(nodeId, descendantIds)
     }
 
-    const result: Record<string, unknown> = {};
+    const result: Record<string, unknown> = {}
 
-    // Layer: incidents
     if (layers.includes('incidents')) {
-      const incidents = await prisma.incident.findMany({
-        where: {
-          ...hierarchyWhere,
-          status: { in: ['OPEN', 'RESPONDING'] },
-        } as any,
-        select: {
-          id: true,
-          incidentNumber: true,
-          type: true,
-          status: true,
-          description: true,
-          location: true,
-          createdAt: true,
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 200,
-      });
-      result.incidents = incidents.map((inc: any) => ({
-        ...inc,
-        title: inc.type,
-        dateTime: inc.createdAt,
-        hierarchyEntityName: 'Department',
-      }));
+      const incidents = await loadIncidents(whereClause)
+      result.incidents = incidents.map((incident) => ({
+        id: incident.id,
+        incidentNumber: incident.incidentNumber,
+        title: incident.title,
+        type: incident.type,
+        status: incident.status,
+        description: incident.description,
+        location: incident.location,
+        createdAt: incident.createdAt,
+        dateTime: incident.createdAt,
+        hierarchyEntityId: incident.hierarchyEntityId,
+        hierarchyEntityName: 'Hierarchy Node',
+      }))
     }
 
-    // Layer: patrols (User model with location data)
     if (layers.includes('patrols')) {
-      const patrols = await prisma.user.findMany({
-        where: {
-          ...hierarchyWhere,
-          isActive: true,
-        } as any,
-        select: {
-          id: true,
-          fullName: true,
-          militaryId: true,
-          rank: true,
-          department: { select: { id: true, nameAr: true } },
-        },
-        take: 100,
-      });
-      result.patrols = patrols.map((p: any) => ({
-        ...p,
-        badgeNumber: p.militaryId,
-        hierarchyEntityName: p.department?.nameAr || 'Unknown',
-      }));
+      const patrols = await loadPatrols(whereClause)
+      result.patrols = patrols.map((patrol) => ({
+        id: patrol.id,
+        patrolNumber: patrol.patrolNumber,
+        name: patrol.name,
+        type: patrol.type,
+        status: patrol.status,
+        startTime: patrol.startTime,
+        endTime: patrol.endTime,
+        location: patrol.location,
+        badgeNumber: patrol.patrolNumber,
+        hierarchyEntityId: patrol.hierarchyEntityId,
+        hierarchyEntityName: 'Hierarchy Node',
+      }))
     }
 
-    return NextResponse.json({ success: true, data: result });
+    return NextResponse.json({ success: true, data: result })
   } catch (error) {
-    console.error('Map Data Error:', error);
+    console.error('Map Data Error:', error)
     return NextResponse.json(
       { error: 'Failed to fetch map data' },
-      { status: 500 },
-    );
+      { status: 500 }
+    )
   }
 }
-
-

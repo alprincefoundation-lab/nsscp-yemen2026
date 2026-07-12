@@ -26,7 +26,7 @@ export default function TopBar({
     lastUpdated,
     systemStatus = 'ACTIVE',
     userName = 'ضابط القيادة',
-    userRole = 'قائد المركز',
+    userRole = 'غير متاح',
     notificationCount = 0,
     hierarchyScope = 'الجمهورية اليمنية',
     onRefresh,

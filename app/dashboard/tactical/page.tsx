@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import CallPanel from "@/components/tactical-ui/call-panel";
 import DepartmentsGrid from "@/components/tactical-ui/departments-grid";
 import Header from "@/components/tactical-ui/header";
-import type { Breadcrumb } from "@/components/tactical-ui/breadcrumb";
 import LiveMap from "@/components/live-map";
 import MainNav from "@/components/tactical-ui/main-nav";
 import MetricsDashboard from "@/components/tactical-ui/metrics-dashboard";
@@ -177,13 +176,13 @@ export default function TacticalDashboardPage() {
             {/* Breadcrumb + Refresh */}
             <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 mt-4">
                 <div className="flex items-center justify-between">
-                    <Breadcrumb
-                        items={[
-                            { label: "الرئيسية", href: "/" },
-                            { label: "لوحة القيادة", href: "/dashboard" },
-                            { label: "المركز التكتيكي" },
-                        ]}
-                    />
+                    <div className="text-xs text-foreground/60">
+                        <span className="ml-2">الرئيسية</span>
+                        <span className="mx-2">/</span>
+                        <span className="ml-2">لوحة القيادة</span>
+                        <span className="mx-2">/</span>
+                        <span>المركز التكتيكي</span>
+                    </div>
                     <button
                         onClick={fetchTacticalData}
                         disabled={loading}
@@ -244,15 +243,28 @@ export default function TacticalDashboardPage() {
                         {(activeTab === "all" || activeTab === "metrics") && (
                             <section>
                                 <MetricsDashboard
-                                    externalMetrics={{
-                                        activeReports: data.metrics.activeReports,
-                                        averageResponseMinutes: data.metrics.averageResponseMinutes,
-                                        averageResponseSeconds: data.metrics.averageResponseSeconds,
-                                        completionRate: data.metrics.completionRate,
-                                        availablePatrols: data.metrics.availablePatrols,
-                                    }}
-                                    externalDistribution={data.metrics.reportDistribution}
-                                    externalOperations={data.metrics.activeOperationsList}
+                                    metrics={[
+                                        {
+                                            labelAr: "البلاغات النشطة",
+                                            labelEn: "Active Reports",
+                                            value: data.metrics.activeReports,
+                                        },
+                                        {
+                                            labelAr: "متوسط الاستجابة",
+                                            labelEn: "Avg Response",
+                                            value: `${data.metrics.averageResponseMinutes}m ${data.metrics.averageResponseSeconds}s`,
+                                        },
+                                        {
+                                            labelAr: "نسبة الإنجاز",
+                                            labelEn: "Completion Rate",
+                                            value: `${data.metrics.completionRate}%`,
+                                        },
+                                        {
+                                            labelAr: "الدووريات المتاحة",
+                                            labelEn: "Available Patrols",
+                                            value: data.metrics.availablePatrols,
+                                        },
+                                    ]}
                                 />
                             </section>
                         )}
@@ -260,7 +272,21 @@ export default function TacticalDashboardPage() {
                         {/* Call Panel — emergency calls */}
                         {(activeTab === "all" || activeTab === "calls") && (
                             <section>
-                                <CallPanel externalCalls={data.emergencyCalls} />
+                                <CallPanel
+                                    calls={data.emergencyCalls.map((call) => ({
+                                        id: call.id,
+                                        callerName: call.name,
+                                        location: call.location,
+                                        priority:
+                                            call.priority === "عالية"
+                                                ? "high"
+                                                : call.priority === "منخفضة"
+                                                    ? "low"
+                                                    : "medium",
+                                        timestamp: call.time,
+                                        description: call.description,
+                                    }))}
+                                />
                             </section>
                         )}
 
@@ -278,7 +304,14 @@ export default function TacticalDashboardPage() {
                                         </span>
                                     </div>
                                     <div className="h-[500px]">
-                                        <LiveMap externalData={data.mapMarkers} />
+                                        <LiveMap
+                                            markers={data.mapMarkers.map((marker) => ({
+                                                id: marker.id,
+                                                lat: marker.lat,
+                                                lng: marker.lng,
+                                                label: marker.name,
+                                            }))}
+                                        />
                                     </div>
                                 </div>
                             </section>
@@ -287,14 +320,28 @@ export default function TacticalDashboardPage() {
                         {/* Departments Grid */}
                         {(activeTab === "all" || activeTab === "departments") && (
                             <section>
-                                <DepartmentsGrid externalDepartments={data.departments} />
+                                <DepartmentsGrid
+                                    departments={data.departments.map((department) => ({
+                                        id: department.id,
+                                        nameAr: department.name,
+                                        nameEn: department.description,
+                                        staffCount: department.staff,
+                                    }))}
+                                />
                             </section>
                         )}
 
                         {/* Provinces Grid */}
                         {(activeTab === "all" || activeTab === "provinces") && (
                             <section>
-                                <ProvincesGrid externalProvinces={data.provinces} />
+                                <ProvincesGrid
+                                    provinces={data.provinces.map((province) => ({
+                                        id: province.id,
+                                        nameAr: province.nameAr,
+                                        nameEn: province.nameEn,
+                                        population: province.activeReports,
+                                    }))}
+                                />
                             </section>
                         )}
 
@@ -305,7 +352,15 @@ export default function TacticalDashboardPage() {
                                     <h2 className="text-2xl font-bold text-foreground">
                                         الهيكل التنظيمي
                                     </h2>
-                                    <OrgChart externalOrgData={data.orgChart} />
+                                    <OrgChart
+                                        data={data.orgChart ? {
+                                            id: data.orgChart.id,
+                                            nameAr: data.orgChart.name,
+                                            nameEn: data.orgChart.title,
+                                            role: data.orgChart.title,
+                                            children: undefined,
+                                        } : null}
+                                    />
                                 </div>
                             </section>
                         )}

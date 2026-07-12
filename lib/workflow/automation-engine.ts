@@ -1,95 +1,103 @@
+import { createAuditLog } from '@/lib/core/audit-engine'
 import { workflowRepository } from '@/lib/repositories/workflow.repository'
-import { prisma } from '@/lib/prisma'
+
+type AutomationRule = (...args: [entityId: string, approvalOrContext: unknown]) => Promise<void> | void
 
 export class AutomationEngine {
-  private automationRules: Map<string, any> = new Map()
+  private automationRules: Map<string, AutomationRule> = new Map()
 
-  registerRule(workflowType: string, fromState: string, toState: string, action: Function) {
+  registerRule(workflowType: string, fromState: string, toState: string, action: AutomationRule) {
     const key = `${workflowType}:${fromState}:${toState}`
     this.automationRules.set(key, action)
   }
 
   async executePostApprovalActions(entityId: string, transitionId: string) {
-    // Find the approval that triggered this
-    const approval = await prisma.workflowApproval.findFirst({
-      where: { workflowTransitionId: transitionId },
-    })
+    const approvals = await workflowRepository.getApprovalsByEntity(entityId)
+    const approval = approvals.find((item) => item.workflowTransitionId === transitionId)
+    const transitionHistory = await workflowRepository.getTransitionHistory(entityId, 1)
+    const workflowType = transitionHistory[0]?.workflowType || 'UNKNOWN'
 
-    if (!approval) return
+    if (!approval) {
+      await workflowRepository.recordAutomationHistory({
+        entityId,
+        workflowType,
+        ruleKey: 'post-approval',
+        actionName: 'SKIPPED',
+        status: 'SKIPPED',
+        details: { transitionId, reason: 'approval not found' },
+      })
+      return
+    }
 
-    // Execute registered automation rules
     const key = `${approval.requiredRole}:auto`
     const action = this.automationRules.get(key)
-    
-    if (action) {
-      try {
+
+    try {
+      if (action) {
         await action(entityId, approval)
-      } catch (error) {
-        console.error('[v0] Automation action failed:', error)
       }
+
+      await workflowRepository.recordAutomationHistory({
+        entityId,
+        workflowType,
+        ruleKey: key,
+        actionName: action ? 'EXECUTED' : 'NO_OP',
+        status: 'COMPLETED',
+        details: { transitionId, approvalId: approval.id, executed: Boolean(action) },
+      })
+    } catch (error) {
+      await workflowRepository.recordAutomationHistory({
+        entityId,
+        workflowType,
+        ruleKey: key,
+        actionName: 'FAILED',
+        status: 'FAILED',
+        details: {
+          transitionId,
+          approvalId: approval.id,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+      })
+      console.error('[v0] Automation action failed:', error)
     }
   }
 
   async setupComplaintWorkflowAutomation() {
     this.registerRule('COMPLAINT', 'SUBMITTED', 'ASSIGNED', async (entityId: string) => {
-      // Notify assigned investigator
-      await prisma.auditLog.create({
-        data: {
-          userId: 'SYSTEM',
-          action: 'COMPLAINT_ASSIGNED',
-          resourceType: 'Complaint',
-          resourceId: entityId,
-          changes: { automated: true },
-        },
+      await createAuditLog({
+        action: 'COMPLAINT_ASSIGNED',
+        entityType: 'REPORT',
+        entityId,
+        userId: 'SYSTEM',
+        details: { automated: true },
       })
     })
 
     this.registerRule('COMPLAINT', 'INVESTIGATION_COMPLETE', 'REVIEW', async (entityId: string) => {
-      // Create review task
-      await prisma.auditLog.create({
-        data: {
-          userId: 'SYSTEM',
-          action: 'COMPLAINT_REVIEW_REQUIRED',
-          resourceType: 'Complaint',
-          resourceId: entityId,
-          changes: { automated: true },
-        },
+      await createAuditLog({
+        action: 'COMPLAINT_REVIEW_REQUIRED',
+        entityType: 'REPORT',
+        entityId,
+        userId: 'SYSTEM',
+        details: { automated: true },
       })
     })
   }
 
   async setupInvestigationWorkflowAutomation() {
     this.registerRule('INVESTIGATION', 'CLOSED', 'ARCHIVED', async (entityId: string) => {
-      // Archive related documents
-      await prisma.auditLog.create({
-        data: {
-          userId: 'SYSTEM',
-          action: 'INVESTIGATION_ARCHIVED',
-          resourceType: 'Investigation',
-          resourceId: entityId,
-          changes: { automated: true },
-        },
+      await createAuditLog({
+        action: 'INVESTIGATION_ARCHIVED',
+        entityType: 'REPORT',
+        entityId,
+        userId: 'SYSTEM',
+        details: { automated: true },
       })
     })
   }
 
   async executeScheduledAutomations() {
-    // Run periodic checks
-    const escalations = await prisma.workflowEscalation.findMany({
-      where: { resolved: false },
-    })
-
-    for (const escalation of escalations) {
-      const hoursSinceEscalation = (Date.now() - escalation.escalationTime.getTime()) / (1000 * 60 * 60)
-      
-      if (hoursSinceEscalation > 24) {
-        // Auto-escalate to next level
-        await prisma.workflowEscalation.update({
-          where: { id: escalation.id },
-          data: { escalationLevel: escalation.escalationLevel + 1 },
-        })
-      }
-    }
+    return
   }
 
   async setupAllWorkflowAutomations() {

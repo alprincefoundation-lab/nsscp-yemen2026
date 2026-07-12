@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
-import jwt from "jsonwebtoken";
 import { headers, cookies } from "next/headers";
 import type { AuthenticatedUser } from "./auth.types";
+import { getSession } from "./session-manager";
+import { prisma } from "@/lib/prisma";
 
 /**
  * Normalize headers into plain object
@@ -53,25 +54,40 @@ export async function getUserFromRequest(
     const userFromHeaders = buildUser(normalizeHeaders(headerList));
     if (userFromHeaders) return userFromHeaders;
 
-    // 3. From cookies JWT fallback
+    // 3. From cookies session token
     const cookieStore = await cookies();
     const token = cookieStore.get("nsscp_session")?.value;
 
     if (!token) return null;
 
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET as string
-    ) as any;
+    const session = await getSession(token);
+    if (!session || !session.isValid || session.expiresAt <= Date.now()) {
+      return null;
+    }
+
+    const officer = await prisma.officer.findUnique({
+      where: { id: session.userId },
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        rank: true,
+        department: true,
+      },
+    });
+
+    if (!officer) return null;
 
     return {
-      id: decoded.id,
-      role: decoded.role,
-      username: decoded.username,
-      hierarchyEntityId: decoded.hierarchyEntityId,
-      hierarchyEntityName: decoded.hierarchyEntityName,
-      hierarchyEntityType: decoded.hierarchyEntityType,
-      fullName: decoded.fullName,
+      id: officer.id,
+      role: officer.role,
+      username: officer.name,
+      hierarchyEntityId: session.hierarchyEntityId,
+      hierarchyEntityName: session.hierarchyEntityName,
+      hierarchyEntityType: session.hierarchyEntityType,
+      fullName: officer.name,
+      rank: officer.rank,
+      badgeNumber: officer.id,
     };
   } catch (err) {
     console.error("[Auth Resolver Error]:", err);

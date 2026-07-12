@@ -12,10 +12,10 @@
  *   has permission to view the requested governorate before returning data.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { apiGuard } from '@/lib/hierarchy/guard';
-import { auditSensitiveAction, auditAccessDenied, rbacGuard } from '@/lib/logging/audit';
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { apiGuard } from '@/lib/hierarchy/guard'
+import { auditSensitiveAction, auditAccessDenied, rbacGuard } from '@/lib/logging/audit'
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -38,6 +38,39 @@ interface DashboardStats {
   };
 }
 
+function escapeSqlLiteral(value: string): string {
+  return value.replace(/'/g, "''")
+}
+
+function sqlValue(value: string | null | undefined): string {
+  if (value === null || value === undefined || value === '') {
+    return 'NULL'
+  }
+
+  return `'${escapeSqlLiteral(value)}'`
+}
+
+function buildHierarchyClause(nodeIds: string[] | null) {
+  if (!nodeIds || nodeIds.length === 0) {
+    return ''
+  }
+
+  return `WHERE "hierarchyEntityId" IN (${nodeIds.map(sqlValue).join(', ')})`
+}
+
+function buildDepartmentClause(nodeIds: string[] | null) {
+  if (!nodeIds || nodeIds.length === 0) {
+    return ''
+  }
+
+  return `WHERE "departmentId" IN (${nodeIds.map(sqlValue).join(', ')})`
+}
+
+async function countRows(query: string): Promise<number> {
+  const rows = await prisma.$queryRawUnsafe<{ count: number }[]>(query)
+  return Number(rows[0]?.count ?? 0)
+}
+
 // ─── GET Handler ────────────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
@@ -57,7 +90,7 @@ export async function GET(request: NextRequest) {
 
     // 4. Resolve the effective scope for the requested node
     if (nodeId === 'GLOBAL') {
-      const stats = await fetchScopedStats(scope);
+      const stats = await fetchScopedStats(null);
 
       // Log successful access to republic-wide stats
       await auditSensitiveAction(request, user, 'READ', 'STATS', 'GLOBAL', {
@@ -86,11 +119,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 6. Fetch the department name
-    const department = await prisma.department.findUnique({
-      where: { id: nodeId },
-      select: { id: true, nameAr: true },
-    });
+    // 6. Fetch the department name from the legacy Department table
+    const departments = await prisma.$queryRawUnsafe<{ id: string; name: string }[]>(`
+      SELECT "id", "name"
+      FROM "Department"
+      WHERE "id" = ${sqlValue(nodeId)}
+      LIMIT 1
+    `)
+
+    const department = departments[0] ?? null;
 
     if (!department) {
       return NextResponse.json(
@@ -101,12 +138,11 @@ export async function GET(request: NextRequest) {
 
     // 7. Expand scope to include all descendants under this department
     const descendantIds = await engine.getDescendantIds();
-    const fullScope = { departmentId: { in: descendantIds } };
-    const stats = await fetchScopedStats(fullScope);
+    const stats = await fetchScopedStats(nodeId === 'GLOBAL' ? null : descendantIds);
 
     // Log successful access to department-scoped stats
     await auditSensitiveAction(request, user, 'READ', 'STATS', nodeId, {
-      details: { scope: 'governorate', governorateName: department.nameAr, stats },
+      details: { scope: 'governorate', governorateName: department.name, stats },
       hierarchyEntityId: nodeId,
       hierarchyEntityType: 'DEPARTMENT',
     });
@@ -115,7 +151,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         nodeId: department.id,
-        nodeName: department.nameAr,
+        nodeName: department.name,
         scope: 'governorate',
         stats,
       } as DashboardStats,
@@ -130,9 +166,9 @@ export async function GET(request: NextRequest) {
       await prisma.auditLog.create({
         data: {
           action: 'ERROR',
-          resourceType: 'STATS',
-          resourceId: 'N/A',
-          newValue: `Dashboard stats internal error: ${(error as Error).message}` as any,
+          entityType: 'STATS',
+          entityId: 'N/A',
+          details: { error: (error as Error).message },
           ipAddress: meta.ipAddress,
           userAgent: meta.userAgent,
         },
@@ -148,10 +184,26 @@ export async function GET(request: NextRequest) {
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
-async function fetchScopedStats(scope: { departmentId?: string | { in: string[] }; createdById?: string }) {
-  const hierarchyWhere = scope.departmentId
-    ? { departmentId: scope.departmentId }
-    : {};
+async function fetchScopedStats(descendantIds: string[] | null) {
+  const caseScope = buildHierarchyClause(descendantIds)
+  const officerScope = buildDepartmentClause(descendantIds)
+  const departmentScope = buildDepartmentClause(descendantIds)
+  const sectionScope = descendantIds && descendantIds.length > 0
+    ? `WHERE "departmentId" IN (${descendantIds.map(sqlValue).join(', ')})`
+    : ''
+  const unitScope = descendantIds && descendantIds.length > 0
+    ? `
+      WHERE "sectionId" IN (
+        SELECT "id"
+        FROM "Section"
+        ${sectionScope}
+      )
+    `
+    : ''
+  const recentFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const recentIncidentScope = descendantIds && descendantIds.length > 0
+    ? `${buildHierarchyClause(descendantIds)} AND`
+    : 'WHERE'
 
   const [
     totalCases,
@@ -162,29 +214,70 @@ async function fetchScopedStats(scope: { departmentId?: string | { in: string[] 
     activeWanted,
     officers,
     departments,
+    sections,
+    units,
     recentIncidents,
   ] = await Promise.all([
-    prisma.case.count({ where: hierarchyWhere as any }),
-    prisma.case.count({ where: { ...hierarchyWhere, status: 'ACTIVE' } as any }),
-    prisma.case.count({ where: { ...hierarchyWhere, status: 'CLOSED' } as any }),
-    prisma.case.count({
-      where: {
-        ...hierarchyWhere,
-        severity: 'HIGH'
-      } as any,
-    }).catch(() => 0),
-    prisma.wantedPerson.count({ where: hierarchyWhere as any }).catch(() => 0),
-    prisma.wantedPerson.count({ where: { ...hierarchyWhere, status: 'ACTIVE' } as any }).catch(() => 0),
-    prisma.user.count({ where: hierarchyWhere as any }).catch(() => 0),
-    prisma.department.count({ where: hierarchyWhere as any }),
-    prisma.incident.count({
-      where: { ...hierarchyWhere, createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } } as any,
-    }).catch(() => 0),
+    countRows(`
+      SELECT COUNT(*)::int AS count
+      FROM "Case"
+      ${caseScope}
+    `),
+    countRows(`
+      SELECT COUNT(*)::int AS count
+      FROM "Case"
+      ${caseScope}${caseScope ? ' AND' : 'WHERE'} "status" IN ('OPEN', 'UNDER_INVESTIGATION', 'PENDING_REVIEW')
+    `),
+    countRows(`
+      SELECT COUNT(*)::int AS count
+      FROM "Case"
+      ${caseScope}${caseScope ? ' AND' : 'WHERE'} "status" IN ('CLOSED', 'ARCHIVED')
+    `),
+    countRows(`
+      SELECT COUNT(*)::int AS count
+      FROM "Case"
+      ${caseScope}${caseScope ? ' AND' : 'WHERE'} "priority" IN ('HIGH', 'CRITICAL')
+    `),
+    prisma.wantedPerson.count().catch(() => 0),
+    prisma.wantedPerson.count({ where: { status: 'مطلوب حياً' } as any }).catch(() => 0),
+    countRows(`
+      SELECT COUNT(*)::int AS count
+      FROM "Officer"
+      ${officerScope}
+    `),
+    countRows(`
+      SELECT COUNT(*)::int AS count
+      FROM "Department"
+      ${departmentScope}
+    `),
+    countRows(`
+      SELECT COUNT(*)::int AS count
+      FROM "Section"
+      ${sectionScope}
+    `),
+    countRows(`
+      SELECT COUNT(*)::int AS count
+      FROM "Unit"
+      ${unitScope}
+    `),
+    countRows(`
+      SELECT COUNT(*)::int AS count
+      FROM "Incident"
+      ${recentIncidentScope} "createdAt" >= ${sqlValue(recentFrom)}
+    `),
   ]);
 
   return {
-    totalCases, activeCases, closedCases, highDangerCases,
-    wantedPersons, activeWanted, officers,
-    departments, sections: 0, units: 0, recentIncidents,
+    totalCases,
+    activeCases,
+    closedCases,
+    highDangerCases,
+    wantedPersons,
+    activeWanted,
+    officers,
+    departments,
+    sections,
+    units,
+    recentIncidents,
   };
 }

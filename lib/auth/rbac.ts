@@ -129,11 +129,39 @@ export async function withDualVerification(
 
 async function getDescendantIds(entityId: string): Promise<string[]> {
   const ids: string[] = [];
-  const children = await prisma.hierarchyEntity.findMany({ where: { parentId: entityId }, select: { id: true } });
-  for (const child of children) {
-    ids.push(child.id);
-    ids.push(...(await getDescendantIds(child.id)));
+
+  const level4Children = await prisma.level4Department.findMany({
+    where: { level3UnitId: entityId },
+    select: { id: true },
+  });
+  if (level4Children.length > 0) {
+    for (const child of level4Children) {
+      ids.push(child.id);
+      ids.push(...(await getDescendantIds(child.id)));
+    }
+    return ids;
   }
+
+  const level5Children = await prisma.level5Section.findMany({
+    where: { level4DepartmentId: entityId },
+    select: { id: true },
+  });
+  if (level5Children.length > 0) {
+    for (const child of level5Children) {
+      ids.push(child.id);
+      ids.push(...(await getDescendantIds(child.id)));
+    }
+    return ids;
+  }
+
+  const level6Children = await prisma.level6Unit.findMany({
+    where: { level5SectionId: entityId },
+    select: { id: true },
+  });
+  for (const child of level6Children) {
+    ids.push(child.id);
+  }
+
   return ids;
 }
 

@@ -1,0 +1,613 @@
+.next/types/validator.ts(1161,31): error TS2344: Type 'typeof import("C:/Users/User/Desktop/NSSCP_FINAL_PRODUCTION_REASSEMBLED/app/api/wanted-persons/[id]/capture/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/wanted-persons/[id]/capture">'.
+.next/types/validator.ts(1170,31): error TS2344: Type 'typeof import("C:/Users/User/Desktop/NSSCP_FINAL_PRODUCTION_REASSEMBLED/app/api/wanted-persons/[id]/notice/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/wanted-persons/[id]/notice">'.
+.next/types/validator.ts(1179,31): error TS2344: Type 'typeof import("C:/Users/User/Desktop/NSSCP_FINAL_PRODUCTION_REASSEMBLED/app/api/wanted-persons/[id]/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/wanted-persons/[id]">'.
+_archive_unused/reset-password.ts(8,16): error TS2339: Property 'user' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/all-departments/page.tsx(26,11): error TS2322: Type '{ arabicTitle: string; englishTitle: string; icon: string; description: string; }' is not assignable to type 'IntrinsicAttributes & BilingualHeaderProps'.
+app/all-departments/page.tsx(173,31): error TS2322: Type '{ department: Department; }' is not assignable to type 'IntrinsicAttributes & DepartmentFormProps'.
+app/api/auth/login/route.ts(20,31): error TS2339: Property 'user' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/auth/login/route.ts(61,9): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+app/api/auth/me/route.ts(45,34): error TS2339: Property 'department' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/cases/[id]/route.ts(24,39): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/cases/[id]/route.ts(66,39): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/cases/[id]/route.ts(107,26): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/cases/[id]/route.ts(122,38): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/cases/[id]/route.ts(149,39): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/cases/[id]/route.ts(157,22): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/cases/route.ts(36,14): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/cases/route.ts(50,14): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/cases/route.ts(85,32): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/cases/route.ts(88,34): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/cases/route.ts(113,9): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+app/api/dashboard/map-data/route.ts(40,38): error TS2339: Property 'incident' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/dashboard/map-data/route.ts(67,36): error TS2339: Property 'user' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/dashboard/stats/route.ts(90,37): error TS2339: Property 'department' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/dashboard/stats/route.ts(133,11): error TS2353: Object literal may only specify known properties, and 'resourceType' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+app/api/dashboard/stats/route.ts(167,12): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/dashboard/stats/route.ts(168,12): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/dashboard/stats/route.ts(169,12): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/dashboard/stats/route.ts(170,12): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/dashboard/stats/route.ts(178,12): error TS2339: Property 'user' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/dashboard/stats/route.ts(179,12): error TS2339: Property 'department' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/dashboard/stats/route.ts(180,12): error TS2339: Property 'incident' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/forms/complaint/route.ts(50,31): error TS2339: Property 'formTemplate' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/forms/investigation/route.ts(54,31): error TS2339: Property 'formTemplate' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/hierarchy/children/route.ts(26,35): error TS2339: Property 'department' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/hierarchy/records/route.ts(23,41): error TS2339: Property 'dynamicRecord' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/hierarchy/records/route.ts(49,38): error TS2339: Property 'dynamicRecord' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/hierarchy/records/route.ts(86,37): error TS2339: Property 'dynamicRecord' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/hierarchy/records/route.ts(111,37): error TS2339: Property 'dynamicRecord' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/hierarchy/records/route.ts(130,22): error TS2339: Property 'dynamicRecord' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/hierarchy/scope/route.ts(7,28): error TS2554: Expected 1 arguments, but got 0.
+app/api/hierarchy/statistics/route.ts(22,37): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/hierarchy/statistics/route.ts(32,27): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/hierarchy/statistics/route.ts(42,43): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/hierarchy/statistics/route.ts(52,27): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/hierarchy/statistics/route.ts(54,50): error TS7006: Parameter 'c' implicitly has an 'any' type.
+app/api/hierarchy/tree/route.ts(7,28): error TS2554: Expected 1 arguments, but got 0.
+app/api/hierarchy/tree/route.ts(14,31): error TS2339: Property 'getTree' does not exist on type 'HierarchyEngine'.
+app/api/operations-reports/route.ts(14,38): error TS2339: Property 'incident' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/operations-reports/route.ts(39,37): error TS2339: Property 'incident' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/reports/route.ts(14,34): error TS2339: Property 'incident' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/reports/route.ts(50,33): error TS2339: Property 'incident' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/strategic-reports/route.ts(14,38): error TS2339: Property 'incident' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/strategic-reports/route.ts(39,37): error TS2339: Property 'incident' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/tactical-dashboard/route.ts(37,20): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/tactical-dashboard/route.ts(38,20): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/tactical-dashboard/route.ts(39,20): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/tactical-dashboard/route.ts(40,20): error TS2339: Property 'operation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/tactical-dashboard/route.ts(41,20): error TS2339: Property 'patrol' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/tactical-dashboard/route.ts(42,20): error TS2339: Property 'emergencyCall' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/tactical-dashboard/route.ts(59,45): error TS2353: Object literal may only specify known properties, and 'isActive' does not exist in type 'OfficerWhereInput'.
+app/api/tactical-dashboard/route.ts(60,20): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/tactical-dashboard/route.ts(63,20): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/tactical-dashboard/route.ts(76,20): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/tactical-dashboard/route.ts(88,20): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/tactical-dashboard/route.ts(101,20): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/tactical-dashboard/route.ts(132,44): error TS7006: Parameter 'acc' implicitly has an 'any' type.
+app/api/tactical-dashboard/route.ts(132,49): error TS7006: Parameter 'call' implicitly has an 'any' type.
+app/api/tactical-dashboard/route.ts(136,48): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/tactical-dashboard/route.ts(137,47): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/tactical-dashboard/route.ts(138,46): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/tactical-dashboard/route.ts(143,54): error TS7006: Parameter 'dept' implicitly has an 'any' type.
+app/api/tactical-dashboard/route.ts(157,50): error TS7006: Parameter 'prov' implicitly has an 'any' type.
+app/api/tactical-dashboard/route.ts(173,50): error TS7006: Parameter 'child' implicitly has an 'any' type.
+app/api/tactical-dashboard/route.ts(179,46): error TS7006: Parameter 'grandChild' implicitly has an 'any' type.
+app/api/tactical-dashboard/route.ts(213,58): error TS7006: Parameter 'call' implicitly has an 'any' type.
+app/api/tactical-dashboard/route.ts(305,30): error TS2339: Property 'operation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/tactical-dashboard/route.ts(319,20): error TS7006: Parameter 'op' implicitly has an 'any' type.
+app/api/tactical-dashboard/route.ts(331,16): error TS2339: Property 'operation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/tactical-dashboard/route.ts(336,16): error TS2339: Property 'patrol' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/tactical-dashboard/route.ts(341,16): error TS2339: Property 'emergencyCall' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+app/api/tactical-dashboard/route.ts(355,29): error TS7006: Parameter 'call' implicitly has an 'any' type.
+app/api/tactical-dashboard/route.ts(355,35): error TS7006: Parameter 'i' implicitly has an 'any' type.
+app/api/tactical-dashboard/route.ts(370,22): error TS7006: Parameter 'patrol' implicitly has an 'any' type.
+app/api/wanted-persons/[id]/route.ts(22,48): error TS2551: Property 'getWantedPersonDetails' does not exist on type 'WantedPersonsService'. Did you mean 'getWantedPerson'?
+app/api/wanted-persons/[id]/route.ts(65,64): error TS2353: Object literal may only specify known properties, and 'status' does not exist in type '{ severity?: "HIGH" | "MEDIUM" | "LOW" | "CRITICAL" | undefined; reason?: string | undefined; gender?: "MALE" | "FEMALE" | "OTHER" | undefined; dateOfBirth?: Date | undefined; ... 8 more ...; profilePhoto?: string | undefined; }'.
+app/api/wanted-persons/route.ts(16,92): error TS2339: Property 'departmentId' does not exist on type 'DecodedToken'.
+app/api/wanted/route.ts(77,7): error TS2322: Type 'number' is not assignable to type 'string'.
+app/api/wanted/route.ts(121,7): error TS2322: Type 'number' is not assignable to type 'string'.
+app/api/wanted/route.ts(155,70): error TS2322: Type 'string' is not assignable to type 'number'.
+app/api/wanted/route.ts(157,49): error TS2322: Type 'string' is not assignable to type 'number'.
+app/api/wanted/route.ts(164,49): error TS2339: Property 'firstName' does not exist on type '{ id: number; createdAt: Date; status: string; identityNumber: string | null; fullName: string; nationality: string; chargeDetails: string | null; issuingProvince: string; dangerLevel: string; }'.
+app/api/wanted/route.ts(164,79): error TS2339: Property 'lastName' does not exist on type '{ id: number; createdAt: Date; status: string; identityNumber: string | null; fullName: string; nationality: string; chargeDetails: string | null; issuingProvince: string; dangerLevel: string; }'.
+app/api/workflows/route.ts(21,45): error TS2339: Property 'name' does not exist on type 'string'.
+app/api/workflows/route.ts(31,25): error TS2339: Property 'name' does not exist on type 'string'.
+app/dashboard/archive/page.tsx(9,11): error TS2339: Property 'records' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/archive/page.tsx(9,20): error TS2339: Property 'total' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/archive/page.tsx(9,27): error TS2339: Property 'totalPages' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/archive/page.tsx(9,39): error TS2339: Property 'isLoading' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/archive/page.tsx(9,57): error TS2339: Property 'mutate' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/archive/page.tsx(9,103): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/archive/page.tsx(17,687): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/dashboard/bulletins/page.tsx(9,11): error TS2339: Property 'records' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/bulletins/page.tsx(9,20): error TS2339: Property 'total' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/bulletins/page.tsx(9,27): error TS2339: Property 'totalPages' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/bulletins/page.tsx(9,39): error TS2339: Property 'isLoading' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/bulletins/page.tsx(9,57): error TS2339: Property 'mutate' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/bulletins/page.tsx(9,105): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/bulletins/page.tsx(18,687): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/dashboard/cases/hooks/useCase.ts(6,34): error TS2307: Cannot find module '@/types/api' or its corresponding type declarations.
+app/dashboard/cases/services/cases-api.ts(7,53): error TS2307: Cannot find module '@/types/api' or its corresponding type declarations.
+app/dashboard/civildefense/page.tsx(10,11): error TS2339: Property 'records' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/civildefense/page.tsx(10,20): error TS2339: Property 'total' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/civildefense/page.tsx(10,27): error TS2339: Property 'totalPages' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/civildefense/page.tsx(10,39): error TS2339: Property 'isLoading' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/civildefense/page.tsx(10,57): error TS2339: Property 'mutate' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/civildefense/page.tsx(10,108): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/civildefense/page.tsx(12,129): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/civildefense/page.tsx(21,726): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/dashboard/criminalinvestigation/page.tsx(10,11): error TS2339: Property 'records' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/criminalinvestigation/page.tsx(10,20): error TS2339: Property 'total' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/criminalinvestigation/page.tsx(10,27): error TS2339: Property 'totalPages' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/criminalinvestigation/page.tsx(10,39): error TS2339: Property 'isLoading' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/criminalinvestigation/page.tsx(10,57): error TS2339: Property 'mutate' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/criminalinvestigation/page.tsx(10,117): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/criminalinvestigation/page.tsx(12,138): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/criminalinvestigation/page.tsx(21,731): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/dashboard/districts/page.tsx(10,11): error TS2339: Property 'records' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/districts/page.tsx(10,20): error TS2339: Property 'total' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/districts/page.tsx(10,27): error TS2339: Property 'totalPages' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/districts/page.tsx(10,39): error TS2339: Property 'isLoading' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/districts/page.tsx(10,57): error TS2339: Property 'mutate' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/districts/page.tsx(10,105): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/districts/page.tsx(12,126): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/districts/page.tsx(22,643): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/dashboard/evidence/page.tsx(10,11): error TS2339: Property 'records' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/evidence/page.tsx(10,20): error TS2339: Property 'total' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/evidence/page.tsx(10,27): error TS2339: Property 'totalPages' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/evidence/page.tsx(10,39): error TS2339: Property 'isLoading' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/evidence/page.tsx(10,57): error TS2339: Property 'mutate' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/evidence/page.tsx(10,104): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/evidence/page.tsx(12,125): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/evidence/page.tsx(22,687): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/dashboard/forensic/page.tsx(10,11): error TS2339: Property 'records' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/forensic/page.tsx(10,20): error TS2339: Property 'total' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/forensic/page.tsx(10,27): error TS2339: Property 'totalPages' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/forensic/page.tsx(10,39): error TS2339: Property 'isLoading' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/forensic/page.tsx(10,57): error TS2339: Property 'mutate' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/forensic/page.tsx(10,104): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/forensic/page.tsx(12,125): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/forensic/page.tsx(21,735): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/dashboard/narcotics/page.tsx(9,11): error TS2339: Property 'records' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/narcotics/page.tsx(9,20): error TS2339: Property 'total' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/narcotics/page.tsx(9,27): error TS2339: Property 'totalPages' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/narcotics/page.tsx(9,39): error TS2339: Property 'isLoading' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/narcotics/page.tsx(9,57): error TS2339: Property 'mutate' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/narcotics/page.tsx(9,105): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/narcotics/page.tsx(11,126): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/narcotics/page.tsx(20,726): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/dashboard/officers/page.tsx(20,11): error TS2339: Property 'records' does not exist on type 'UseApiDataResult<OfficerRecord>'.
+app/dashboard/officers/page.tsx(20,20): error TS2339: Property 'total' does not exist on type 'UseApiDataResult<OfficerRecord>'.
+app/dashboard/officers/page.tsx(20,27): error TS2339: Property 'totalPages' does not exist on type 'UseApiDataResult<OfficerRecord>'.
+app/dashboard/officers/page.tsx(20,39): error TS2339: Property 'isLoading' does not exist on type 'UseApiDataResult<OfficerRecord>'.
+app/dashboard/officers/page.tsx(20,57): error TS2339: Property 'mutate' does not exist on type 'UseApiDataResult<OfficerRecord>'.
+app/dashboard/officers/page.tsx(21,22): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/officers/page.tsx(40,44): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/officers/page.tsx(86,26): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/dashboard/operations/page.tsx(10,11): error TS2339: Property 'records' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/operations/page.tsx(10,20): error TS2339: Property 'total' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/operations/page.tsx(10,27): error TS2339: Property 'totalPages' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/operations/page.tsx(10,39): error TS2339: Property 'isLoading' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/operations/page.tsx(10,57): error TS2339: Property 'mutate' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/operations/page.tsx(10,106): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/operations/page.tsx(12,127): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/operations/page.tsx(21,731): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/dashboard/passports/page.tsx(10,11): error TS2339: Property 'records' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/passports/page.tsx(10,20): error TS2339: Property 'total' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/passports/page.tsx(10,27): error TS2339: Property 'totalPages' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/passports/page.tsx(10,39): error TS2339: Property 'isLoading' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/passports/page.tsx(10,57): error TS2339: Property 'mutate' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/passports/page.tsx(10,105): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/passports/page.tsx(12,126): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/passports/page.tsx(21,731): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/dashboard/prisons/page.tsx(10,11): error TS2339: Property 'records' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/prisons/page.tsx(10,20): error TS2339: Property 'total' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/prisons/page.tsx(10,27): error TS2339: Property 'totalPages' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/prisons/page.tsx(10,39): error TS2339: Property 'isLoading' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/prisons/page.tsx(10,57): error TS2339: Property 'mutate' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/prisons/page.tsx(10,103): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/prisons/page.tsx(12,124): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/prisons/page.tsx(21,734): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/dashboard/reports/page.tsx(9,11): error TS2339: Property 'records' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/reports/page.tsx(9,20): error TS2339: Property 'total' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/reports/page.tsx(9,27): error TS2339: Property 'totalPages' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/reports/page.tsx(9,39): error TS2339: Property 'isLoading' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/reports/page.tsx(9,57): error TS2339: Property 'mutate' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/reports/page.tsx(9,103): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/reports/page.tsx(18,728): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/dashboard/settings/page.tsx(8,11): error TS2339: Property 'records' does not exist on type 'UseApiDataResult<Setting>'.
+app/dashboard/settings/page.tsx(8,20): error TS2339: Property 'isLoading' does not exist on type 'UseApiDataResult<Setting>'.
+app/dashboard/settings/page.tsx(8,38): error TS2339: Property 'mutate' does not exist on type 'UseApiDataResult<Setting>'.
+app/dashboard/stations/page.tsx(18,11): error TS2339: Property 'records' does not exist on type 'UseApiDataResult<StationRecord>'.
+app/dashboard/stations/page.tsx(18,20): error TS2339: Property 'total' does not exist on type 'UseApiDataResult<StationRecord>'.
+app/dashboard/stations/page.tsx(18,27): error TS2339: Property 'totalPages' does not exist on type 'UseApiDataResult<StationRecord>'.
+app/dashboard/stations/page.tsx(18,39): error TS2339: Property 'isLoading' does not exist on type 'UseApiDataResult<StationRecord>'.
+app/dashboard/stations/page.tsx(18,57): error TS2339: Property 'mutate' does not exist on type 'UseApiDataResult<StationRecord>'.
+app/dashboard/stations/page.tsx(18,111): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/stations/page.tsx(20,125): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/stations/page.tsx(47,320): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/dashboard/tactical/page.tsx(7,33): error TS2306: File 'C:/Users/User/Desktop/NSSCP_FINAL_PRODUCTION_REASSEMBLED/components/tactical-ui/breadcrumb.ts' is not a module.
+app/dashboard/tactical/page.tsx(180,22): error TS1361: 'Breadcrumb' cannot be used as a value because it was imported using 'import type'.
+app/dashboard/tactical/page.tsx(247,37): error TS2322: Type '{ externalMetrics: { activeReports: number; averageResponseMinutes: number; averageResponseSeconds: number; completionRate: number; availablePatrols: number; }; externalDistribution: { ...; }; externalOperations: OperationItem[]; }' is not assignable to type 'IntrinsicAttributes & MetricsDashboardProps'.
+app/dashboard/tactical/page.tsx(263,44): error TS2322: Type '{ externalCalls: EmergencyCallData[]; }' is not assignable to type 'IntrinsicAttributes & CallPanelProps'.
+app/dashboard/tactical/page.tsx(281,50): error TS2322: Type '{ externalData: MapMarkerData[]; }' is not assignable to type 'IntrinsicAttributes & LiveMapProps'.
+app/dashboard/tactical/page.tsx(290,50): error TS2322: Type '{ externalDepartments: DepartmentData[]; }' is not assignable to type 'IntrinsicAttributes & DepartmentsGridProps'.
+  Property 'externalDepartments' does not exist on type 'IntrinsicAttributes & DepartmentsGridProps'.
+app/dashboard/tactical/page.tsx(297,48): error TS2322: Type '{ externalProvinces: ProvinceData[]; }' is not assignable to type 'IntrinsicAttributes & ProvincesGridProps'.
+app/dashboard/tactical/page.tsx(308,47): error TS2322: Type '{ externalOrgData: OrgChartData | null; }' is not assignable to type 'IntrinsicAttributes & OrgChartProps'.
+app/dashboard/vehicles/page.tsx(10,11): error TS2339: Property 'records' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/vehicles/page.tsx(10,20): error TS2339: Property 'total' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/vehicles/page.tsx(10,27): error TS2339: Property 'totalPages' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/vehicles/page.tsx(10,39): error TS2339: Property 'isLoading' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/vehicles/page.tsx(10,57): error TS2339: Property 'mutate' does not exist on type 'UseApiDataResult<Record>'.
+app/dashboard/vehicles/page.tsx(10,104): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/vehicles/page.tsx(12,125): error TS2554: Expected 1 arguments, but got 2.
+app/dashboard/vehicles/page.tsx(22,752): error TS7006: Parameter 'r' implicitly has an 'any' type.
+app/dashboard/wanted/services/wanted-api.ts(7,53): error TS2307: Cannot find module '@/types/api' or its corresponding type declarations.
+app/page.tsx(83,13): error TS2322: Type '{ href: string; arabicTitle: string; englishTitle: string; arabicDescription: string; icon: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BilingualCardProps'.
+app/page.tsx(93,13): error TS2322: Type '{ href: string; arabicTitle: string; englishTitle: string; arabicDescription: string; icon: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BilingualCardProps'.
+app/page.tsx(106,13): error TS2322: Type '{ href: string; arabicTitle: string; englishTitle: string; arabicDescription: string; icon: string; stat: { label: string; value: string; }; }' is not assignable to type 'IntrinsicAttributes & BilingualCardProps'.
+app/page.tsx(116,13): error TS2322: Type '{ href: string; arabicTitle: string; englishTitle: string; arabicDescription: string; icon: string; stat: { label: string; value: string; }; }' is not assignable to type 'IntrinsicAttributes & BilingualCardProps'.
+app/page.tsx(126,13): error TS2322: Type '{ href: string; arabicTitle: string; englishTitle: string; arabicDescription: string; icon: string; stat: { label: string; value: string; }; }' is not assignable to type 'IntrinsicAttributes & BilingualCardProps'.
+app/wanted-persons/page.tsx(53,47): error TS2322: Type '{ data: any; }' is not assignable to type 'IntrinsicAttributes & WantedPersonsStatisticsProps'.
+app/wanted-persons/page.tsx(92,9): error TS2322: Type '{ search: string; severity: string; status: string; onRefresh: () => Promise<void>; }' is not assignable to type 'IntrinsicAttributes & WantedPersonsListProps'.
+app/wanted-persons/page.tsx(100,9): error TS2322: Type '{ open: boolean; onOpenChange: Dispatch<SetStateAction<boolean>>; onSuccess: () => void; }' is not assignable to type 'IntrinsicAttributes & WantedPersonDialogProps'.
+lib/actions/civil-record.actions.ts(56,35): error TS2339: Property 'civilRecord' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/actions/civil-record.actions.ts(62,31): error TS2339: Property 'civilRecord' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/audit.ts(16,9): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/auth.ts(98,29): error TS2339: Property 'user' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/auth.ts(113,28): error TS7006: Parameter 'r' implicitly has an 'any' type.
+lib/auth.ts(146,29): error TS2339: Property 'user' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/auth.ts(164,28): error TS7006: Parameter 'p' implicitly has an 'any' type.
+lib/auth.ts(172,30): error TS7006: Parameter 'p' implicitly has an 'any' type.
+lib/auth.ts(185,17): error TS2339: Property 'user' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/auth.ts(211,17): error TS2339: Property 'user' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/auth/rbac.ts(132,33): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/auth/session-manager.ts(15,47): error TS2307: Cannot find module 'redis' or its corresponding type declarations.
+lib/auth/session-manager.ts(37,34): error TS7006: Parameter 'err' implicitly has an 'any' type.
+lib/auth/session-manager.ts(48,42): error TS7006: Parameter 'err' implicitly has an 'any' type.
+lib/command-center/service.ts(44,28): error TS2339: Property 'user' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/command-center/service.ts(45,28): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/command-center/service.ts(47,28): error TS2339: Property 'evidence' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/core/audit-engine.ts(86,13): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type 'Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput'.
+lib/core/audit-engine.ts(135,17): error TS2353: Object literal may only specify known properties, and 'user' does not exist in type 'AuditLogInclude<DefaultArgs>'.
+lib/core/rbac-engine.ts(151,39): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/core/rbac-engine.ts(156,43): error TS7006: Parameter 'c' implicitly has an 'any' type.
+lib/core/rbac-engine.ts(174,19): error TS2339: Property 'role' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/core/rbac-engine.ts(190,19): error TS2339: Property 'role' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/core/rbac-engine.ts(211,31): error TS2339: Property 'role' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/core/rbac-engine.ts(254,18): error TS2339: Property 'rolePermission' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/core/rbac-engine.ts(257,33): error TS2339: Property 'rolePermission' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/core/rbac-engine.ts(266,35): error TS2339: Property 'role' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/core/rbac-engine.ts(287,19): error TS2339: Property 'permission' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/core/workflow-engine.ts(141,26): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/core/workflow-engine.ts(142,31): error TS2339: Property 'operation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/core/workflow-engine.ts(143,30): error TS2339: Property 'evidence' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/core/workflow-engine.ts(294,13): error TS2353: Object literal may only specify known properties, and 'user' does not exist in type 'AuditLogInclude<DefaultArgs>'.
+lib/dtos/workflow.dto.ts(2,3): error TS2564: Property 'id' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(3,3): error TS2564: Property 'workflowType' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(4,3): error TS2564: Property 'stateName' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(5,3): error TS2564: Property 'displayName' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(6,3): error TS2564: Property 'orderSequence' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(7,3): error TS2564: Property 'requiresApproval' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(9,3): error TS2564: Property 'createdAt' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(10,3): error TS2564: Property 'updatedAt' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(14,3): error TS2564: Property 'id' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(15,3): error TS2564: Property 'fromStateId' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(16,3): error TS2564: Property 'toStateId' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(17,3): error TS2564: Property 'requiresApproval' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(25,3): error TS2564: Property 'id' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(26,3): error TS2564: Property 'workflowTransitionId' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(27,3): error TS2564: Property 'entityId' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(28,3): error TS2564: Property 'requestedBy' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(29,3): error TS2564: Property 'requestedByRole' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(30,3): error TS2564: Property 'requiredRole' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(31,3): error TS2564: Property 'status' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(36,3): error TS2564: Property 'createdAt' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(37,3): error TS2564: Property 'expiresAt' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(41,3): error TS2564: Property 'id' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(42,3): error TS2564: Property 'entityId' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(43,3): error TS2564: Property 'workflowType' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(44,3): error TS2564: Property 'currentState' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(45,3): error TS2564: Property 'escalationLevel' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(48,3): error TS2564: Property 'escalationTime' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(50,3): error TS2564: Property 'resolved' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(51,3): error TS2564: Property 'createdAt' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(52,3): error TS2564: Property 'updatedAt' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(56,3): error TS2564: Property 'id' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(57,3): error TS2564: Property 'entityId' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(58,3): error TS2564: Property 'workflowType' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(59,3): error TS2564: Property 'previousState' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(60,3): error TS2564: Property 'newState' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(61,3): error TS2564: Property 'userId' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(62,3): error TS2564: Property 'userRole' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(63,3): error TS2564: Property 'userDepartment' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(65,3): error TS2564: Property 'requiresApproval' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(67,3): error TS2564: Property 'timestamp' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(71,3): error TS2564: Property 'entityId' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(72,3): error TS2564: Property 'workflowType' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(73,3): error TS2564: Property 'fromState' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(74,3): error TS2564: Property 'toState' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(75,3): error TS2564: Property 'userId' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(76,3): error TS2564: Property 'userRole' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(77,3): error TS2564: Property 'userDepartment' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(82,3): error TS2564: Property 'approvalId' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(83,3): error TS2564: Property 'status' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(84,3): error TS2564: Property 'approvedBy' has no initializer and is not definitely assigned in the constructor.
+lib/dtos/workflow.dto.ts(85,3): error TS2564: Property 'approvalDate' has no initializer and is not definitely assigned in the constructor.
+lib/hierarchy-service.ts(7,15): error TS2305: Module '"@prisma/client"' has no exported member 'HierarchyType'.
+lib/hierarchy-service.ts(38,19): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy-service.ts(54,39): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy-service.ts(91,37): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy-service.ts(117,19): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy-service.ts(132,33): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy-service.ts(138,43): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy-service.ts(142,40): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy-service.ts(146,37): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy-service.ts(150,38): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy-service.ts(155,37): error TS7006: Parameter 'd' implicitly has an 'any' type.
+lib/hierarchy-service.ts(157,24): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy-service.ts(162,35): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy-service.ts(166,37): error TS7006: Parameter 's' implicitly has an 'any' type.
+lib/hierarchy-service.ts(168,24): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy-service.ts(194,19): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy-service.ts(208,19): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy-service.ts(218,19): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy-service.ts(226,39): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy-service.ts(241,42): error TS2339: Property 'hierarchyUser' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy-service.ts(245,47): error TS7006: Parameter 'h' implicitly has an 'any' type.
+lib/hierarchy-service.ts(257,42): error TS2339: Property 'hierarchyUser' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy-service.ts(285,39): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy/index.ts(44,33): error TS2339: Property 'department' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy/index.ts(71,31): error TS2339: Property 'user' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy/index.ts(115,33): error TS2339: Property 'user' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy/index.ts(209,14): error TS2339: Property 'user' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/hierarchy/index.ts(216,14): error TS2339: Property 'user' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/middleware/security-middleware.ts(230,36): error TS2554: Expected 1 arguments, but got 0.
+lib/notifications/wanted-persons.notifications.ts(5,68): error TS2322: Type 'string' is not assignable to type 'number'.
+lib/notifications/wanted-persons.notifications.ts(9,40): error TS2339: Property 'name' does not exist on type '{ id: number; createdAt: Date; status: string; identityNumber: string | null; fullName: string; nationality: string; chargeDetails: string | null; issuingProvince: string; dangerLevel: string; }'.
+lib/notifications/wanted-persons.notifications.ts(16,68): error TS2322: Type 'string' is not assignable to type 'number'.
+lib/notifications/wanted-persons.notifications.ts(20,32): error TS2339: Property 'name' does not exist on type '{ id: number; createdAt: Date; status: string; identityNumber: string | null; fullName: string; nationality: string; chargeDetails: string | null; issuingProvince: string; dangerLevel: string; }'.
+lib/notifications/wanted-persons.notifications.ts(28,68): error TS2322: Type 'string' is not assignable to type 'number'.
+lib/notifications/wanted-persons.notifications.ts(32,60): error TS2339: Property 'name' does not exist on type '{ id: number; createdAt: Date; status: string; identityNumber: string | null; fullName: string; nationality: string; chargeDetails: string | null; issuingProvince: string; dangerLevel: string; }'.
+lib/notifications/wanted-persons.notifications.ts(39,68): error TS2322: Type 'string' is not assignable to type 'number'.
+lib/notifications/wanted-persons.notifications.ts(43,25): error TS2339: Property 'name' does not exist on type '{ id: number; createdAt: Date; status: string; identityNumber: string | null; fullName: string; nationality: string; chargeDetails: string | null; issuingProvince: string; dangerLevel: string; }'.
+lib/performance/state-selector-optimizer.ts(226,24): error TS2345: Argument of type '{ select: (state: TState) => unknown; getLastValue: () => unknown; getMetrics: () => SelectorMetrics | null; }' is not assignable to parameter of type '{ select: (state: unknown) => unknown; getLastValue: () => unknown; getMetrics: () => SelectorMetrics | null; }'.
+    Type '(state: TState) => unknown' is not assignable to type '(state: unknown) => unknown'.
+        Type 'unknown' is not assignable to type 'TState'.
+          'TState' could be instantiated with an arbitrary type which could be unrelated to 'unknown'.
+lib/reports/wanted-persons.reports.ts(10,7): error TS2322: Type '"severity"[]' is not assignable to type 'WantedPersonScalarFieldEnum | WantedPersonScalarFieldEnum[]'.
+lib/reports/wanted-persons.reports.ts(22,54): error TS2339: Property 'severity' does not exist on type 'PickEnumerable<WantedPersonGroupByOutputType, WantedPersonScalarFieldEnum | WantedPersonScalarFieldEnum[]> & { ...; }'.
+lib/reports/wanted-persons.reports.ts(22,71): error TS18048: 's._count' is possibly 'undefined'.
+lib/reports/wanted-persons.reports.ts(22,80): error TS2339: Property 'id' does not exist on type 'true | { id?: number | undefined; fullName?: number | undefined; identityNumber?: number | undefined; nationality?: number | undefined; chargeDetails?: number | undefined; issuingProvince?: number | undefined; dangerLevel?: number | undefined; status?: number | undefined; createdAt?: number | undefined; _all?: numbe...'.
+lib/reports/wanted-persons.reports.ts(30,35): error TS2339: Property 'captureRecord' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/reports/wanted-persons.reports.ts(65,34): error TS2339: Property 'internationalNotice' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/repositories/wanted-persons.repository.ts(11,16): error TS2322: Type 'string' is not assignable to type 'number'.
+lib/repositories/wanted-persons.repository.ts(17,16): error TS2353: Object literal may only specify known properties, and 'wantedNumber' does not exist in type 'WantedPersonWhereUniqueInput'.
+lib/repositories/wanted-persons.repository.ts(30,7): error TS2353: Object literal may only specify known properties, and 'isDeleted' does not exist in type 'WantedPersonWhereInput'.
+lib/repositories/wanted-persons.repository.ts(57,13): error TS2353: Object literal may only specify known properties, and 'firstName' does not exist in type 'WantedPersonWhereInput'.
+lib/repositories/wanted-persons.repository.ts(58,13): error TS2353: Object literal may only specify known properties, and 'lastName' does not exist in type 'WantedPersonWhereInput'.
+lib/repositories/wanted-persons.repository.ts(59,13): error TS2353: Object literal may only specify known properties, and 'wantedNumber' does not exist in type 'WantedPersonWhereInput'.
+lib/repositories/wanted-persons.repository.ts(60,13): error TS2561: Object literal may only specify known properties, but 'nationalId' does not exist in type 'WantedPersonWhereInput'. Did you mean to write 'nationality'?
+lib/repositories/wanted-persons.repository.ts(72,16): error TS2322: Type 'string' is not assignable to type 'number'.
+lib/repositories/wanted-persons.repository.ts(73,24): error TS2353: Object literal may only specify known properties, and 'updatedAt' does not exist in type '(Without<WantedPersonUpdateInput, WantedPersonUncheckedUpdateInput> & WantedPersonUncheckedUpdateInput) | (Without<...> & WantedPersonUpdateInput)'.
+lib/repositories/wanted-persons.repository.ts(79,16): error TS2322: Type 'string' is not assignable to type 'number'.
+lib/repositories/wanted-persons.repository.ts(80,15): error TS2353: Object literal may only specify known properties, and 'isDeleted' does not exist in type '(Without<WantedPersonUpdateInput, WantedPersonUncheckedUpdateInput> & WantedPersonUncheckedUpdateInput) | (Without<...> & WantedPersonUpdateInput)'.
+lib/repositories/wanted-persons.repository.ts(86,16): error TS2353: Object literal may only specify known properties, and 'severity' does not exist in type 'WantedPersonWhereInput'.
+lib/repositories/wanted-persons.repository.ts(94,9): error TS2353: Object literal may only specify known properties, and 'internationalNotice' does not exist in type 'WantedPersonWhereInput'.
+lib/repositories/wanted-persons.repository.ts(102,16): error TS2322: Type 'string' is not assignable to type 'number'.
+lib/repositories/wanted-persons.repository.ts(103,23): error TS2353: Object literal may only specify known properties, and 'updatedAt' does not exist in type '(Without<WantedPersonUpdateInput, WantedPersonUncheckedUpdateInput> & WantedPersonUncheckedUpdateInput) | (Without<...> & WantedPersonUpdateInput)'.
+lib/repositories/wanted-persons.repository.ts(112,16): error TS2322: Type 'string' is not assignable to type 'number'.
+lib/repositories/wanted-persons.repository.ts(114,9): error TS2353: Object literal may only specify known properties, and 'internationalNotice' does not exist in type '(Without<WantedPersonUpdateInput, WantedPersonUncheckedUpdateInput> & WantedPersonUncheckedUpdateInput) | (Without<...> & WantedPersonUpdateInput)'.
+lib/repositories/wanted-persons.repository.ts(126,16): error TS2322: Type 'string' is not assignable to type 'number'.
+lib/repositories/wanted-persons.repository.ts(128,9): error TS2353: Object literal may only specify known properties, and 'lastSeenLocation' does not exist in type '(Without<WantedPersonUpdateInput, WantedPersonUncheckedUpdateInput> & WantedPersonUncheckedUpdateInput) | (Without<...> & WantedPersonUpdateInput)'.
+lib/repositories/wanted-persons.repository.ts(145,46): error TS2353: Object literal may only specify known properties, and 'isDeleted' does not exist in type 'WantedPersonWhereInput'.
+lib/repositories/wanted-persons.repository.ts(147,20): error TS2353: Object literal may only specify known properties, and 'isDeleted' does not exist in type 'WantedPersonWhereInput'.
+lib/repositories/wanted-persons.repository.ts(150,20): error TS2353: Object literal may only specify known properties, and 'isDeleted' does not exist in type 'WantedPersonWhereInput'.
+lib/repositories/wanted-persons.repository.ts(153,20): error TS2353: Object literal may only specify known properties, and 'isDeleted' does not exist in type 'WantedPersonWhereInput'.
+lib/repositories/wanted-persons.repository.ts(156,20): error TS2353: Object literal may only specify known properties, and 'isDeleted' does not exist in type 'WantedPersonWhereInput'.
+lib/repositories/wanted-persons.repository.ts(159,20): error TS2353: Object literal may only specify known properties, and 'isDeleted' does not exist in type 'WantedPersonWhereInput'.
+lib/repositories/workflow.repository.ts(2,10): error TS2305: Module '"@prisma/client"' has no exported member 'WorkflowState'.
+lib/repositories/workflow.repository.ts(2,25): error TS2305: Module '"@prisma/client"' has no exported member 'WorkflowTransition'.
+lib/repositories/workflow.repository.ts(2,45): error TS2305: Module '"@prisma/client"' has no exported member 'WorkflowApproval'.
+lib/repositories/workflow.repository.ts(2,63): error TS2305: Module '"@prisma/client"' has no exported member 'WorkflowEscalation'.
+lib/repositories/workflow.repository.ts(2,83): error TS2305: Module '"@prisma/client"' has no exported member 'WorkflowTransitionLog'.
+lib/repositories/workflow.repository.ts(7,19): error TS2339: Property 'workflowState' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/repositories/workflow.repository.ts(14,19): error TS2339: Property 'workflowState' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/repositories/workflow.repository.ts(18,19): error TS2339: Property 'workflowState' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/repositories/workflow.repository.ts(22,19): error TS2339: Property 'workflowState' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/repositories/workflow.repository.ts(27,19): error TS2339: Property 'workflowTransition' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/repositories/workflow.repository.ts(34,19): error TS2339: Property 'workflowTransition' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/repositories/workflow.repository.ts(41,19): error TS2339: Property 'workflowApproval' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/repositories/workflow.repository.ts(49,19): error TS2339: Property 'workflowApproval' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/repositories/workflow.repository.ts(56,19): error TS2339: Property 'workflowApproval' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/repositories/workflow.repository.ts(60,19): error TS2339: Property 'workflowApproval' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/repositories/workflow.repository.ts(67,19): error TS2339: Property 'workflowApproval' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/repositories/workflow.repository.ts(75,19): error TS2339: Property 'workflowEscalation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/repositories/workflow.repository.ts(82,19): error TS2339: Property 'workflowEscalation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/repositories/workflow.repository.ts(86,19): error TS2339: Property 'workflowEscalation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/repositories/workflow.repository.ts(94,19): error TS2339: Property 'workflowTransitionLog' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/repositories/workflow.repository.ts(98,19): error TS2339: Property 'workflowTransitionLog' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/repositories/workflow.repository.ts(108,31): error TS2339: Property 'workflowTransitionLog' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/rules/wanted-persons.rules.ts(5,12): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ LOW: number; MEDIUM: number; HIGH: number; CRITICAL: number; }'.
+lib/rules/wanted-persons.rules.ts(5,37): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ LOW: number; MEDIUM: number; HIGH: number; CRITICAL: number; }'.
+lib/rules/wanted-persons.rules.ts(35,12): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ ACTIVE: string[]; CAPTURED: string[]; PENDING_LOCATION: string[]; RELEASED: never[]; CONVICTED: never[]; DECEASED: never[]; }'.
+lib/search/wanted-persons.search.ts(43,18): error TS2353: Object literal may only specify known properties, and 'captures' does not exist in type 'WantedPersonInclude<DefaultArgs>'.
+lib/search/wanted-persons.search.ts(49,16): error TS2353: Object literal may only specify known properties, and 'severity' does not exist in type 'WantedPersonWhereInput'.
+lib/search/wanted-persons.search.ts(57,18): error TS2353: Object literal may only specify known properties, and 'updatedAt' does not exist in type 'WantedPersonOrderByWithRelationInput | WantedPersonOrderByWithRelationInput[]'.
+lib/services/archive-service.ts(56,33): error TS2339: Property 'archiveFolder' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/archive-service.ts(107,19): error TS2339: Property 'archiveFolder' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/archive-service.ts(128,33): error TS2339: Property 'archiveFolder' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/archive-service.ts(166,33): error TS2339: Property 'archiveFolder' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/archive-service.ts(188,33): error TS2339: Property 'archiveFolder' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/archive-service.ts(203,18): error TS2339: Property 'archiveFolder' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/archive-service.ts(230,33): error TS2339: Property 'archiveFolder' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/archive-service.ts(239,35): error TS2339: Property 'archiveDocument' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/archive-service.ts(331,16): error TS2339: Property 'archiveDocument' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/archive-service.ts(355,16): error TS2339: Property 'archiveDocument' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/archive-service.ts(371,35): error TS2339: Property 'archiveDocument' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/archive-service.ts(417,35): error TS2339: Property 'archiveDocument' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/archive-service.ts(430,38): error TS2339: Property 'documentVersion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/archive-service.ts(438,34): error TS2339: Property 'documentVersion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/archive-service.ts(451,18): error TS2339: Property 'archiveDocument' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/archive-service.ts(498,35): error TS2339: Property 'archiveDocument' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/archive-service.ts(510,18): error TS2339: Property 'archiveDocument' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/archive-service.ts(533,38): error TS2339: Property 'archiveFolder' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/archive-service.ts(537,40): error TS2339: Property 'archiveDocument' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/archive-service.ts(543,36): error TS2339: Property 'archiveDocument' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/archive-service.ts(550,42): error TS2339: Property 'archiveDocument' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/auth.service.ts(17,29): error TS2339: Property 'user' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/auth.service.ts(75,53): error TS7006: Parameter 'h' implicitly has an 'any' type.
+lib/services/forms.service.ts(3,3): error TS2305: Module '"@prisma/client"' has no exported member 'FormTemplate'.
+lib/services/forms.service.ts(4,3): error TS2305: Module '"@prisma/client"' has no exported member 'FormSubmission'.
+lib/services/forms.service.ts(5,3): error TS2305: Module '"@prisma/client"' has no exported member 'FormField'.
+lib/services/forms.service.ts(6,3): error TS2305: Module '"@prisma/client"' has no exported member 'FormAttachment'.
+lib/services/forms.service.ts(31,33): error TS2339: Property 'formTemplate' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/forms.service.ts(48,33): error TS2339: Property 'formTemplate' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/forms.service.ts(61,33): error TS2339: Property 'formTemplate' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/forms.service.ts(80,34): error TS2339: Property 'formTemplate' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/forms.service.ts(106,35): error TS2339: Property 'formSubmission' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/forms.service.ts(128,7): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/services/forms.service.ts(140,35): error TS2339: Property 'formSubmission' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/forms.service.ts(169,38): error TS2339: Property 'formSubmission' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/forms.service.ts(173,35): error TS2339: Property 'formSubmission' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/forms.service.ts(195,7): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/services/forms.service.ts(216,36): error TS2339: Property 'formSubmission' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/forms.service.ts(252,35): error TS2339: Property 'formAttachment' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/forms.service.ts(275,34): error TS2339: Property 'formSignature' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/forms.service.ts(298,34): error TS2339: Property 'formApproval' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/forms.service.ts(329,35): error TS2339: Property 'formSubmission' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/forms.service.ts(339,16): error TS2339: Property 'formApproval' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/forms.service.ts(352,7): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/services/forms.service.ts(374,35): error TS2339: Property 'formSubmission' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/forms.service.ts(383,16): error TS2339: Property 'formApproval' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/forms.service.ts(397,7): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/services/hierarchy.service.ts(8,23): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/hierarchy.service.ts(23,34): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/hierarchy.service.ts(53,32): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/hierarchy.service.ts(82,36): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/hierarchy.service.ts(90,16): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/investigations.service.ts(2,10): error TS2305: Module '"@prisma/client"' has no exported member 'Investigation'.
+lib/services/investigations.service.ts(2,25): error TS2305: Module '"@prisma/client"' has no exported member 'Suspect'.
+lib/services/investigations.service.ts(2,34): error TS2305: Module '"@prisma/client"' has no exported member 'Witness'.
+lib/services/investigations.service.ts(16,38): error TS2339: Property 'investigation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/investigations.service.ts(38,7): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/services/investigations.service.ts(49,38): error TS2339: Property 'investigation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/investigations.service.ts(76,38): error TS2339: Property 'investigation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/investigations.service.ts(91,7): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/services/investigations.service.ts(110,39): error TS2339: Property 'investigation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/investigations.service.ts(144,32): error TS2339: Property 'suspect' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/investigations.service.ts(164,32): error TS2339: Property 'suspect' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/investigations.service.ts(172,7): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/services/investigations.service.ts(184,32): error TS2339: Property 'suspect' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/investigations.service.ts(197,33): error TS2339: Property 'suspect' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/investigations.service.ts(224,32): error TS2339: Property 'witness' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/investigations.service.ts(247,32): error TS2339: Property 'witness' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/investigations.service.ts(255,7): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/services/investigations.service.ts(267,32): error TS2339: Property 'witness' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/investigations.service.ts(277,34): error TS2339: Property 'witness' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/investigations.service.ts(299,38): error TS2339: Property 'interrogation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/investigations.service.ts(320,7): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/services/investigations.service.ts(331,38): error TS2339: Property 'interrogation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/investigations.service.ts(342,39): error TS2339: Property 'interrogation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/investigations.service.ts(361,38): error TS2339: Property 'interrogation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/investigations.service.ts(384,33): error TS2339: Property 'investigationTimeline' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/investigations.service.ts(397,33): error TS2339: Property 'investigationTimeline' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/operations.service.ts(2,10): error TS2305: Module '"@prisma/client"' has no exported member 'Operation'.
+lib/services/operations.service.ts(2,21): error TS2305: Module '"@prisma/client"' has no exported member 'Incident'.
+lib/services/operations.service.ts(18,34): error TS2339: Property 'operation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/operations.service.ts(45,7): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/services/operations.service.ts(56,34): error TS2339: Property 'operation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/operations.service.ts(79,35): error TS2339: Property 'operation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/operations.service.ts(103,34): error TS2339: Property 'operation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/operations.service.ts(115,7): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/services/operations.service.ts(133,33): error TS2339: Property 'operationTimeline' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/operations.service.ts(146,33): error TS2339: Property 'operationTimeline' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/operations.service.ts(169,33): error TS2339: Property 'incident' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/operations.service.ts(193,7): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/services/operations.service.ts(204,33): error TS2339: Property 'incident' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/operations.service.ts(224,34): error TS2339: Property 'incident' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/operations.service.ts(246,33): error TS2339: Property 'incident' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/operations.service.ts(262,33): error TS2339: Property 'incidentTimeline' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/operations.service.ts(274,33): error TS2339: Property 'incidentTimeline' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/prison.service.ts(2,10): error TS2305: Module '"@prisma/client"' has no exported member 'Prisoner'.
+lib/services/prison.service.ts(2,20): error TS2305: Module '"@prisma/client"' has no exported member 'Cell'.
+lib/services/prison.service.ts(24,33): error TS2339: Property 'prisoner' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/prison.service.ts(52,7): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/services/prison.service.ts(63,33): error TS2339: Property 'prisoner' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/prison.service.ts(96,34): error TS2339: Property 'prisoner' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/prison.service.ts(119,33): error TS2339: Property 'prisoner' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/prison.service.ts(130,7): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/services/prison.service.ts(152,29): error TS2339: Property 'cell' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/prison.service.ts(170,29): error TS2339: Property 'cell' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/prison.service.ts(191,30): error TS2339: Property 'cell' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/prison.service.ts(212,33): error TS2339: Property 'prisoner' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/prison.service.ts(218,32): error TS2339: Property 'prisoner' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/prison.service.ts(226,7): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/services/prison.service.ts(252,31): error TS2339: Property 'disciplinaryRecord' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/prison.service.ts(267,7): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/services/prison.service.ts(288,31): error TS2339: Property 'medicalRecord' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/prison.service.ts(314,28): error TS2339: Property 'visitorLog' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/prison.service.ts(328,33): error TS2339: Property 'visitorLog' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/wanted-persons.service.ts(36,7): error TS2353: Object literal may only specify known properties, and 'wantedNumber' does not exist in type 'WantedPersonCreateInput'.
+lib/services/wanted-persons.service.ts(45,7): error TS2322: Type 'number' is not assignable to type 'string'.
+lib/services/wanted-persons.service.ts(80,61): error TS2559: Type '{ severity?: "HIGH" | "MEDIUM" | "LOW" | "CRITICAL" | undefined; reason?: string | undefined; gender?: "MALE" | "FEMALE" | "OTHER" | undefined; dateOfBirth?: Date | undefined; ... 8 more ...; profilePhoto?: string | undefined; }' has no properties in common with type 'WantedPersonUpdateInput'.
+lib/services/wanted-persons.service.ts(99,7): error TS2353: Object literal may only specify known properties, and 'domesticStatus' does not exist in type 'WantedPersonUpdateInput'.
+lib/services/wanted-persons.service.ts(106,32): error TS2339: Property 'case' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/wanted-persons.service.ts(109,35): error TS2339: Property 'firstName' does not exist on type '{ id: number; createdAt: Date; status: string; identityNumber: string | null; fullName: string; nationality: string; chargeDetails: string | null; issuingProvince: string; dangerLevel: string; }'.
+lib/services/wanted-persons.service.ts(109,55): error TS2339: Property 'lastName' does not exist on type '{ id: number; createdAt: Date; status: string; identityNumber: string | null; fullName: string; nationality: string; chargeDetails: string | null; issuingProvince: string; dangerLevel: string; }'.
+lib/services/workflow.service.ts(103,38): error TS7006: Parameter 's' implicitly has an 'any' type.
+lib/swagger.ts(1,35): error TS2307: Cannot find module 'next-swagger-doc' or its corresponding type declarations.
+lib/types/hierarchy.ts(1,10): error TS2305: Module '"@prisma/client"' has no exported member 'User'.
+lib/types/hierarchy.ts(1,16): error TS2305: Module '"@prisma/client"' has no exported member 'HierarchyEntity'.
+lib/types/hierarchy.ts(1,33): error TS2305: Module '"@prisma/client"' has no exported member 'HierarchyUser'.
+lib/workflow/approval-engine.ts(40,11): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/workflow/approval-engine.ts(57,9): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/workflow/approval-engine.ts(73,35): error TS2339: Property 'workflowApproval' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/workflow/approval-engine.ts(80,36): error TS2339: Property 'workflowApproval' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/workflow/approval-engine.ts(84,38): error TS7006: Parameter 'a' implicitly has an 'any' type.
+lib/workflow/approval-engine.ts(85,39): error TS7006: Parameter 'a' implicitly has an 'any' type.
+lib/workflow/approval-engine.ts(86,39): error TS7006: Parameter 'a' implicitly has an 'any' type.
+lib/workflow/automation-engine.ts(14,35): error TS2339: Property 'workflowApproval' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/workflow/automation-engine.ts(38,11): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/workflow/automation-engine.ts(51,11): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/workflow/automation-engine.ts(66,11): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/workflow/automation-engine.ts(78,38): error TS2339: Property 'workflowEscalation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/workflow/automation-engine.ts(87,22): error TS2339: Property 'workflowEscalation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/workflow/escalation-engine.ts(55,9): error TS2353: Object literal may only specify known properties, and 'userId' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/workflow/sla-engine.ts(13,33): error TS2339: Property 'workflowTransitionLog' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/workflow/sla-engine.ts(28,45): error TS2339: Property 'workflowEscalation' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/workflow/sla-engine.ts(56,31): error TS2339: Property 'workflowTransitionLog' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/workflow/transitions.ts(141,20): error TS2339: Property 'workflowTransitionLog' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/workflow/transitions.ts(162,11): error TS2353: Object literal may only specify known properties, and 'resourceType' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/workflow/transitions.ts(196,35): error TS2339: Property 'workflowApproval' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/workflow/transitions.ts(226,37): error TS2339: Property 'workflowApproval' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/workflow/transitions.ts(251,36): error TS2339: Property 'workflowApproval' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/workflow/transitions.ts(264,11): error TS2353: Object literal may only specify known properties, and 'resourceType' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/workflow/transitions.ts(304,37): error TS2339: Property 'workflowApproval' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/workflow/transitions.ts(322,36): error TS2339: Property 'workflowApproval' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/workflow/transitions.ts(336,11): error TS2353: Object literal may only specify known properties, and 'resourceType' does not exist in type '(Without<AuditLogCreateInput, AuditLogUncheckedCreateInput> & AuditLogUncheckedCreateInput) | (Without<...> & AuditLogCreateInput)'.
+lib/workflow/transitions.ts(370,31): error TS2339: Property 'workflowTransitionLog' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/workflow/transitions.ts(386,36): error TS2339: Property 'workflowApproval' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/workflow/transitions.ts(410,34): error TS2339: Property 'workflowTransitionLog' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/workflow/transitions.ts(416,22): error TS2339: Property 'workflowApproval' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/workflows/wanted-persons.workflow.ts(3,63): error TS2554: Expected 0 arguments, but got 2.
+prisma/seed-wanted-persons.ts(5,29): error TS2339: Property 'department' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed-wanted-persons.ts(50,16): error TS2353: Object literal may only specify known properties, and 'name' does not exist in type 'WantedPersonWhereUniqueInput'.
+prisma/seed-wanted-persons.ts(52,7): error TS2322: Type '{ name: string; nationality: string; dateOfBirth: Date; gender: string; physicalDescription: string; charges: string; severity: string; status: string; photoUrl: string; }' is not assignable to type '(Without<WantedPersonCreateInput, WantedPersonUncheckedCreateInput> & WantedPersonUncheckedCreateInput) | (Without<...> & WantedPersonCreateInput)'.
+prisma/seed.ts(1,24): error TS2305: Module '"@prisma/client"' has no exported member 'HierarchyType'.
+prisma/seed.ts(282,42): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(307,38): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(324,34): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(343,43): error TS2339: Property 'role' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(344,39): error TS2339: Property 'role' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(375,43): error TS2339: Property 'permission' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(376,39): error TS2339: Property 'permission' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(408,26): error TS2339: Property 'rolePermission' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(430,39): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(450,38): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(482,42): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(515,30): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(544,38): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(577,42): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(618,46): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(663,38): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(693,40): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(698,43): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(703,40): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(710,26): error TS2339: Property 'dynamicForm' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(731,26): error TS2339: Property 'dynamicForm' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(752,26): error TS2339: Property 'dynamicForm' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(784,49): error TS2339: Property 'department' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(799,45): error TS2339: Property 'user' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(843,22): error TS2339: Property 'hierarchyUser' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(866,44): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(867,41): error TS2339: Property 'role' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(868,47): error TS2339: Property 'permission' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(869,41): error TS2339: Property 'user' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(870,47): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(871,44): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(872,41): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(873,48): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(874,48): error TS2339: Property 'dynamicForm' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+prisma/seed.ts(877,49): error TS2339: Property 'hierarchyEntity' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
