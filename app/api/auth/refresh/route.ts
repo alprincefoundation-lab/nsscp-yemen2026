@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyRefreshToken, createTokens } from '@/lib/auth'
+import { verifyRefreshToken, denyRefreshToken, createTokens } from '@/lib/auth'
 import { RefreshTokenSchema } from '@/lib/schemas'
 import { z } from 'zod'
 
@@ -21,6 +21,9 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       )
     }
+
+    // Deny old refresh token (rotation — prevents reuse)
+    denyRefreshToken(validatedData.refreshToken)
 
     // Create new tokens
     const { accessToken, refreshToken } = await createTokens(decoded.id)

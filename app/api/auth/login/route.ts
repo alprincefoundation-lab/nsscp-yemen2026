@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import {
   comparePassword,
   createTokens,
+  resolveOfficerHierarchyContext,
 } from '@/lib/auth'
 import { createSession } from '@/lib/auth/session-manager'
 import { LoginSchema } from '@/lib/schemas'
@@ -20,6 +21,14 @@ export async function POST(request: NextRequest) {
     // Find officer by military ID (Legacy schema stores officer identity in `name`)
     const officer = await prisma.officer.findFirst({
       where: { name: validatedData.militaryId },
+      select: {
+        id: true,
+        name: true,
+        rank: true,
+        role: true,
+        department: true,
+        passwordHash: true,
+      },
     })
 
     if (!officer) {
@@ -29,10 +38,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify password against the legacy placeholder hash field.
+    if (!officer.passwordHash) {
+      return NextResponse.json(
+        { error: 'Invalid credentials' },
+        { status: 401 }
+      )
+    }
+
+    // Verify password against the stored bcrypt hash.
     const isPasswordValid = await comparePassword(
       validatedData.password,
-      officer.name
+      officer.passwordHash
     )
 
     if (!isPasswordValid) {
@@ -44,6 +60,7 @@ export async function POST(request: NextRequest) {
 
     // Create tokens
     const { accessToken, refreshToken } = await createTokens(officer.id)
+    const hierarchyContext = await resolveOfficerHierarchyContext(officer.id)
 
     await createSession(accessToken, {
       userId: officer.id,
@@ -52,9 +69,9 @@ export async function POST(request: NextRequest) {
       deviceId: request.headers.get('user-agent') || 'unknown-device',
       ip: (request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown') as string,
       userAgent: (request.headers.get('user-agent') || 'unknown') as string,
-      hierarchyEntityId: undefined,
-      hierarchyEntityName: officer.department,
-      hierarchyEntityType: 'OFFICER',
+      hierarchyEntityId: hierarchyContext.hierarchyEntityId ?? undefined,
+      hierarchyEntityName: hierarchyContext.hierarchyEntityName ?? officer.department,
+      hierarchyEntityType: hierarchyContext.hierarchyEntityType ?? 'OFFICER',
     })
 
     // Log audit
@@ -81,6 +98,9 @@ export async function POST(request: NextRequest) {
             rank: officer.rank,
             department: officer.department,
             roles: [officer.role],
+            hierarchyEntityId: hierarchyContext.hierarchyEntityId,
+            hierarchyEntityName: hierarchyContext.hierarchyEntityName ?? officer.department,
+            hierarchyEntityType: hierarchyContext.hierarchyEntityType ?? 'OFFICER',
           },
         },
       },

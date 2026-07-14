@@ -34,10 +34,16 @@ const ICON_MAP: Record<string, React.ElementType> = {
 
 const ROLE_ARABIC: Record<string, string> = {
   SUPER_ADMIN: 'مدير النظام العام',
+  MINISTRY_ADMIN: 'مدير الوزارة',
   GOVERNORATE_ADMIN: 'مدير المحافظة',
+  DEPARTMENT_HEAD: 'مدير الإدارة',
+  SECTION_HEAD: 'مدير القسم',
+  UNIT_HEAD: 'مدير الوحدة',
+  OFFICER: 'ضابط',
+  VIEWER: 'مشاهد فقط',
+  // Legacy
   DEPARTMENT_MANAGER: 'مدير الإدارة',
   SECTION_MANAGER: 'مدير القسم',
-  OFFICER: 'ضابط',
   DATA_ENTRY: 'إدخال بيانات',
   VIEW_ONLY: 'عرض فقط',
 };

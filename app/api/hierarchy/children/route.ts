@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUser } from '@/lib/auth'
-import { HierarchyEngine } from '@/lib/hierarchy'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
+import { getApiScope } from '@/lib/hierarchy/data-scope'
 
 type HierarchyEntityRow = {
   id: string
@@ -9,18 +10,6 @@ type HierarchyEntityRow = {
   code: string
   type: string
   parentId: string | null
-}
-
-function escapeSqlLiteral(value: string): string {
-  return value.replace(/'/g, "''")
-}
-
-function sqlValue(value: string | null | undefined): string {
-  if (value === null || value === undefined || value === '') {
-    return 'NULL'
-  }
-
-  return `'${escapeSqlLiteral(value)}'`
 }
 
 export async function GET(request: NextRequest) {
@@ -36,18 +25,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'entityId parameter is required' }, { status: 400 })
     }
 
-    const engine = new HierarchyEngine({
-      id: authUser.id,
-      role: authUser.role,
-      hierarchyNodeId: authUser.hierarchyEntityId,
-    })
+    const scope = await getApiScope(authUser.id, authUser.role, authUser.hierarchyEntityId)
+    const allowedIds = scope.allowedEntityIds
 
-    const canAccess = await engine.canAccessHierarchy(entityId)
-    if (!canAccess) {
+    if (allowedIds.length > 0 && !allowedIds.includes(entityId)) {
       return NextResponse.json({ error: 'غير مصرح بالوصول لهذا الكيان' }, { status: 403 })
     }
 
-    const children = await prisma.$queryRawUnsafe<HierarchyEntityRow[]>(`
+    const children = await prisma.$queryRaw<HierarchyEntityRow[]>(Prisma.sql`
       SELECT
         "id",
         "name",
@@ -55,7 +40,7 @@ export async function GET(request: NextRequest) {
         "type",
         "parentId"
       FROM "HierarchyEntity"
-      WHERE "parentId" = ${sqlValue(entityId)}
+      WHERE "parentId" = ${entityId}
       ORDER BY "name" ASC
     `)
 

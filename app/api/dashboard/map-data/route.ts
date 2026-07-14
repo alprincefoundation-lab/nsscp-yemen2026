@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { apiGuard } from '@/lib/hierarchy/guard'
+import { Prisma } from '@prisma/client'
 
 type IncidentRow = {
   id: string
@@ -34,27 +35,8 @@ type PatrolRow = {
   hierarchyEntityId: string | null
 }
 
-function escapeSqlLiteral(value: string): string {
-  return value.replace(/'/g, "''")
-}
-
-function sqlValue(value: string | null | undefined): string {
-  if (value === null || value === undefined || value === '') {
-    return 'NULL'
-  }
-
-  return `'${escapeSqlLiteral(value)}'`
-}
-
-function buildHierarchyClause(nodeId: string, descendantIds: string[]) {
-  const scopedIds = [nodeId, ...descendantIds].map(sqlValue).join(', ')
-  return scopedIds ? `WHERE "hierarchyEntityId" IN (${scopedIds})` : ''
-}
-
-async function loadIncidents(whereClause: string): Promise<IncidentRow[]> {
-  const statusClause = whereClause ? `${whereClause} AND` : 'WHERE'
-
-  return prisma.$queryRawUnsafe<IncidentRow[]>(`
+async function loadIncidents(scopedIds: string[] | null): Promise<IncidentRow[]> {
+  return prisma.$queryRaw<IncidentRow[]>(Prisma.sql`
     SELECT
       "id",
       "incidentNumber",
@@ -66,16 +48,18 @@ async function loadIncidents(whereClause: string): Promise<IncidentRow[]> {
       "createdAt",
       "hierarchyEntityId"
     FROM "Incident"
-    ${statusClause} "status" IN ('REPORTED', 'UNDER_INVESTIGATION')
+    ${
+      scopedIds && scopedIds.length > 0
+        ? Prisma.sql`WHERE "hierarchyEntityId" IN (${Prisma.join(scopedIds)}) AND`
+        : Prisma.sql`WHERE`
+    } "status" IN ('REPORTED', 'UNDER_INVESTIGATION')
     ORDER BY "createdAt" DESC
     LIMIT 200
   `)
 }
 
-async function loadPatrols(whereClause: string): Promise<PatrolRow[]> {
-  const statusClause = whereClause ? `${whereClause} AND` : 'WHERE'
-
-  return prisma.$queryRawUnsafe<PatrolRow[]>(`
+async function loadPatrols(scopedIds: string[] | null): Promise<PatrolRow[]> {
+  return prisma.$queryRaw<PatrolRow[]>(Prisma.sql`
     SELECT
       "id",
       "patrolNumber",
@@ -87,7 +71,11 @@ async function loadPatrols(whereClause: string): Promise<PatrolRow[]> {
       "location",
       "hierarchyEntityId"
     FROM "Patrol"
-    ${statusClause} "status" = 'ACTIVE'
+    ${
+      scopedIds && scopedIds.length > 0
+        ? Prisma.sql`WHERE "hierarchyEntityId" IN (${Prisma.join(scopedIds)}) AND`
+        : Prisma.sql`WHERE`
+    } "status" = 'ACTIVE'
     ORDER BY "createdAt" DESC
     LIMIT 100
   `)
@@ -102,9 +90,9 @@ export async function GET(request: NextRequest) {
     const nodeId = searchParams.get('nodeId') || 'GLOBAL'
     const layers = (searchParams.get('layers') || 'incidents').split(',')
 
-    let whereClause = ''
+    let scopedIds: string[] | null = null
     if (nodeId !== 'GLOBAL') {
-      const canAccess = await guard.engine.canAccessHierarchy(nodeId)
+      const canAccess = guard.dataScope.allowedEntityIds.length === 0 || guard.dataScope.allowedEntityIds.includes(nodeId)
       if (!canAccess) {
         return NextResponse.json(
           { error: 'Not authorized for this hierarchy node' },
@@ -112,14 +100,13 @@ export async function GET(request: NextRequest) {
         )
       }
 
-      const descendantIds = await guard.engine.getDescendantIds()
-      whereClause = buildHierarchyClause(nodeId, descendantIds)
+      scopedIds = [nodeId, ...guard.dataScope.allowedEntityIds.filter((id) => id !== nodeId)]
     }
 
     const result: Record<string, unknown> = {}
 
     if (layers.includes('incidents')) {
-      const incidents = await loadIncidents(whereClause)
+      const incidents = await loadIncidents(scopedIds)
       result.incidents = incidents.map((incident) => ({
         id: incident.id,
         incidentNumber: incident.incidentNumber,
@@ -136,7 +123,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (layers.includes('patrols')) {
-      const patrols = await loadPatrols(whereClause)
+      const patrols = await loadPatrols(scopedIds)
       result.patrols = patrols.map((patrol) => ({
         id: patrol.id,
         patrolNumber: patrol.patrolNumber,

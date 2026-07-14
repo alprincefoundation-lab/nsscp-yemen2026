@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
 import { registerPrisoner, listPrisoners } from '@/lib/services/prison.service'
+import { requireAuth } from '@/lib/auth'
+import { getHierarchyScope } from '@/lib/hierarchy/data-scope'
 import { z } from 'zod'
 
 const RegisterPrisonerSchema = z.object({
@@ -23,25 +26,40 @@ const RegisterPrisonerSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const auth = await requireAuth(request)
+    const scope = await getHierarchyScope(auth)
 
     const body = await request.json()
     const validatedData = RegisterPrisonerSchema.parse(body)
 
+    const departmentId = validatedData.departmentId || auth.hierarchyEntityId
+    if (departmentId && scope.allowedEntityIds.length > 0 && !scope.allowedEntityIds.includes(departmentId)) {
+      return NextResponse.json(
+        { error: 'غير مصرح بالوصول لهذا النطاق' },
+        { status: 403 }
+      )
+    }
+
     const prisoner = await registerPrisoner({
       ...validatedData,
+      departmentId,
       dateOfBirth: new Date(validatedData.dateOfBirth),
       sentenceStartDate: new Date(validatedData.sentenceStartDate),
       estimatedReleaseDate: validatedData.estimatedReleaseDate
         ? new Date(validatedData.estimatedReleaseDate)
         : undefined,
       bookingDate: new Date(validatedData.bookingDate),
+    })
+
+    // Audit log
+    await prisma.auditLog.create({
+      data: {
+        officerId: auth.id,
+        action: 'REGISTER_PRISONER',
+        entityType: 'Prisoner',
+        entityId: (prisoner as any).id,
+        details: { prisonerId: validatedData.prisonerId, fullName: validatedData.fullName, crimeType: validatedData.crimeType, departmentId },
+      },
     })
 
     return NextResponse.json(
@@ -68,6 +86,8 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request)
+    const scope = await getHierarchyScope(auth)
     const searchParams = request.nextUrl.searchParams
     const status = searchParams.get('status')
     const crimeType = searchParams.get('crimeType')
@@ -76,11 +96,20 @@ export async function GET(request: NextRequest) {
     const skip = searchParams.get('skip')
     const take = searchParams.get('take')
 
+    // Validate client-supplied departmentId against scope
+    if (departmentId && scope.allowedEntityIds.length > 0 && !scope.allowedEntityIds.includes(departmentId)) {
+      return NextResponse.json(
+        { error: 'غير مصرح بالوصول لهذا النطاق' },
+        { status: 403 }
+      )
+    }
+
     const prisoners = await listPrisoners({
-      ...(status && { status }),
-      ...(crimeType && { crimeType }),
-      ...(departmentId && { departmentId }),
-      ...(currentCellId && { currentCellId }),
+      ...(scope.allowedEntityIds.length > 0 ? { departmentIds: scope.allowedEntityIds } : {}),
+      ...(status ? { status } : {}),
+      ...(crimeType ? { crimeType } : {}),
+      ...(departmentId ? { departmentId } : {}),
+      ...(currentCellId ? { currentCellId } : {}),
       skip: skip ? parseInt(skip) : undefined,
       take: take ? parseInt(take) : undefined,
     })

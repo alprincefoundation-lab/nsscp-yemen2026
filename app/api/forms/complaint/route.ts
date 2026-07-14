@@ -3,6 +3,9 @@ export const dynamic = 'force-dynamic'
 import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireAuth } from '@/lib/auth'
+import { getHierarchyScope } from '@/lib/hierarchy/data-scope'
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
 const ComplaintFormSchema = z.object({
@@ -43,24 +46,20 @@ type FormSubmissionRow = {
   updatedAt: Date
 }
 
-function escapeSqlLiteral(value: string): string {
-  return value.replace(/'/g, "''")
-}
+const GENDER_OPTIONS = [
+  { value: 'MALE', label: 'ذكر' },
+  { value: 'FEMALE', label: 'أنثى' },
+]
 
-function sqlValue(value: string | null | undefined): string {
-  if (value === null || value === undefined || value === '') {
-    return 'NULL'
-  }
-
-  return `'${escapeSqlLiteral(value)}'`
-}
-
-function sqlJson(value: unknown): string {
-  return `'${escapeSqlLiteral(JSON.stringify(value))}'::jsonb`
-}
+const COMPLAINT_TYPE_OPTIONS = [
+  { value: 'CRIMINAL', label: 'شكوى جنائية' },
+  { value: 'CIVIL', label: 'شكوى مدنية' },
+  { value: 'SERVICE', label: 'شكوى خدمات' },
+  { value: 'OTHER', label: 'أخرى' },
+]
 
 async function getComplaintTemplate(): Promise<DynamicFormRow | null> {
-  const rows = await prisma.$queryRawUnsafe<DynamicFormRow[]>(`
+  const rows = await prisma.$queryRaw<DynamicFormRow[]>(Prisma.sql`
     SELECT
       "id",
       "name",
@@ -80,9 +79,9 @@ async function getComplaintTemplate(): Promise<DynamicFormRow | null> {
 
 async function createComplaintTemplate(hierarchyEntityId: string): Promise<DynamicFormRow> {
   const templateId = randomUUID()
-  const now = new Date().toISOString()
+  const now = new Date()
 
-  await prisma.$executeRawUnsafe(`
+  await prisma.$executeRaw(Prisma.sql`
     INSERT INTO "DynamicForm" (
       "id",
       "name",
@@ -92,48 +91,44 @@ async function createComplaintTemplate(hierarchyEntityId: string): Promise<Dynam
       "createdAt",
       "updatedAt"
     ) VALUES (
-      ${sqlValue(templateId)},
+      ${templateId},
       'complaint_form',
       'COMPLAINT',
-      ${sqlValue(hierarchyEntityId)},
-      ${sqlValue('استمارة تقديم الشكاوى الجنائية والمدنية')},
-      ${sqlValue(now)},
-      ${sqlValue(now)}
+      ${hierarchyEntityId},
+      'استمارة تقديم الشكاوى الجنائية والمدنية',
+      ${now},
+      ${now}
     )
   `)
 
-  const fieldRows = [
-    ['complaintNumber', 'رقم الشكوى', 'TEXT', false, 1],
-    ['submissionDate', 'تاريخ تقديم الشكوى', 'DATE', true, 2],
-    ['complainantName', 'اسم المشتكي', 'TEXT', true, 3],
-    ['identityNumber', 'رقم الهوية', 'TEXT', true, 4],
-    ['birthDate', 'تاريخ الميلاد', 'DATE', true, 5],
-    ['gender', 'الجنس', 'SELECT', true, 6],
-    ['address', 'عنوان السكن', 'TEXT', true, 7],
-    ['phoneNumber', 'رقم الهاتف', 'TEXT', true, 8],
-    ['complaintType', 'نوع الشكوى', 'SELECT', true, 9],
-    ['complaintDescription', 'وصف الشكوى', 'TEXTAREA', true, 10],
-    ['incidentDate', 'تاريخ وقوع الحادث', 'DATE', true, 11],
-    ['relatedEntity', 'الجهة المعنية', 'TEXT', false, 12],
-    ['attachments', 'المرفقات', 'FILE', false, 13],
-    ['complainantSignature', 'توقيع المشتكي', 'SIGNATURE', false, 14],
-    ['additionalNotes', 'ملاحظات إضافية', 'TEXTAREA', false, 15],
-  ] as const
+  const fieldRows: Array<{
+    name: string
+    label: string
+    type: string
+    required: boolean
+    sortOrder: number
+    options?: Array<{ value: string; label: string }> | null
+  }> = [
+    { name: 'complaintNumber', label: 'رقم الشكوى', type: 'TEXT', required: false, sortOrder: 1 },
+    { name: 'submissionDate', label: 'تاريخ تقديم الشكوى', type: 'DATE', required: true, sortOrder: 2 },
+    { name: 'complainantName', label: 'اسم المشتكي', type: 'TEXT', required: true, sortOrder: 3 },
+    { name: 'identityNumber', label: 'رقم الهوية', type: 'TEXT', required: true, sortOrder: 4 },
+    { name: 'birthDate', label: 'تاريخ الميلاد', type: 'DATE', required: true, sortOrder: 5 },
+    { name: 'gender', label: 'الجنس', type: 'SELECT', required: true, sortOrder: 6, options: GENDER_OPTIONS },
+    { name: 'address', label: 'عنوان السكن', type: 'TEXT', required: true, sortOrder: 7 },
+    { name: 'phoneNumber', label: 'رقم الهاتف', type: 'TEXT', required: true, sortOrder: 8 },
+    { name: 'complaintType', label: 'نوع الشكوى', type: 'SELECT', required: true, sortOrder: 9, options: COMPLAINT_TYPE_OPTIONS },
+    { name: 'complaintDescription', label: 'وصف الشكوى', type: 'TEXTAREA', required: true, sortOrder: 10 },
+    { name: 'incidentDate', label: 'تاريخ وقوع الحادث', type: 'DATE', required: true, sortOrder: 11 },
+    { name: 'relatedEntity', label: 'الجهة المعنية', type: 'TEXT', required: false, sortOrder: 12 },
+    { name: 'attachments', label: 'المرفقات', type: 'FILE', required: false, sortOrder: 13 },
+    { name: 'complainantSignature', label: 'توقيع المشتكي', type: 'SIGNATURE', required: false, sortOrder: 14 },
+    { name: 'additionalNotes', label: 'ملاحظات إضافية', type: 'TEXTAREA', required: false, sortOrder: 15 },
+  ]
 
-  for (const [name, label, type, required, sortOrder] of fieldRows) {
-    const options =
-      name === 'gender'
-        ? [{ value: 'MALE', label: 'ذكر' }, { value: 'FEMALE', label: 'أنثى' }]
-        : name === 'complaintType'
-          ? [
-              { value: 'CRIMINAL', label: 'شكوى جنائية' },
-              { value: 'CIVIL', label: 'شكوى مدنية' },
-              { value: 'SERVICE', label: 'شكوى خدمات' },
-              { value: 'OTHER', label: 'أخرى' },
-            ]
-          : null
-
-    await prisma.$executeRawUnsafe(`
+  for (const field of fieldRows) {
+    const optionsJson = field.options ? JSON.stringify(field.options) : null
+    await prisma.$executeRaw(Prisma.sql`
       INSERT INTO "DynamicField" (
         "id",
         "formId",
@@ -148,18 +143,18 @@ async function createComplaintTemplate(hierarchyEntityId: string): Promise<Dynam
         "createdAt",
         "updatedAt"
       ) VALUES (
-        ${sqlValue(randomUUID())},
-        ${sqlValue(templateId)},
-        ${sqlValue(name)},
-        ${sqlValue(label)},
-        ${sqlValue(type)},
-        ${required ? 'TRUE' : 'FALSE'},
-        ${options ? sqlJson(options) : 'NULL'},
-        ${sortOrder},
+        ${randomUUID()},
+        ${templateId},
+        ${field.name},
+        ${field.label},
+        ${field.type},
+        ${field.required},
+        ${optionsJson ?? null}::jsonb,
+        ${field.sortOrder},
         NULL,
         NULL,
-        ${sqlValue(now)},
-        ${sqlValue(now)}
+        ${now},
+        ${now}
       )
     `)
   }
@@ -170,8 +165,8 @@ async function createComplaintTemplate(hierarchyEntityId: string): Promise<Dynam
     code: 'COMPLAINT',
     hierarchyEntityId,
     description: 'استمارة تقديم الشكاوى الجنائية والمدنية',
-    createdAt: new Date(now),
-    updatedAt: new Date(now),
+    createdAt: now,
+    updatedAt: now,
   }
 }
 
@@ -182,9 +177,13 @@ async function createSubmission(args: {
   formData: unknown
 }): Promise<FormSubmissionRow> {
   const submissionId = randomUUID()
-  const now = new Date().toISOString()
+  const now = new Date()
+  const dataJson = JSON.stringify({
+    ...((args.formData as Record<string, unknown>) || {}),
+    departmentId: args.departmentId,
+  })
 
-  await prisma.$executeRawUnsafe(`
+  await prisma.$executeRaw(Prisma.sql`
     INSERT INTO "FormSubmission" (
       "id",
       "templateId",
@@ -193,19 +192,16 @@ async function createSubmission(args: {
       "createdAt",
       "updatedAt"
     ) VALUES (
-      ${sqlValue(submissionId)},
-      ${sqlValue(args.templateId)},
-      ${sqlJson({
-        ...((args.formData as Record<string, unknown>) || {}),
-        departmentId: args.departmentId,
-      })},
-      ${sqlValue(args.submittedBy)},
-      ${sqlValue(now)},
-      ${sqlValue(now)}
+      ${submissionId},
+      ${args.templateId},
+      ${dataJson}::jsonb,
+      ${args.submittedBy},
+      ${now},
+      ${now}
     )
   `)
 
-  const rows = await prisma.$queryRawUnsafe<FormSubmissionRow[]>(`
+  const rows = await prisma.$queryRaw<FormSubmissionRow[]>(Prisma.sql`
     SELECT
       "id",
       "templateId",
@@ -214,7 +210,7 @@ async function createSubmission(args: {
       "createdAt",
       "updatedAt"
     FROM "FormSubmission"
-    WHERE "id" = ${sqlValue(submissionId)}
+    WHERE "id" = ${submissionId}
     LIMIT 1
   `)
 
@@ -226,20 +222,30 @@ async function createSubmission(args: {
       departmentId: args.departmentId,
     },
     submittedBy: args.submittedBy,
-    createdAt: new Date(now),
-    updatedAt: new Date(now),
+    createdAt: now,
+    updatedAt: now,
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
-    const departmentId = request.headers.get('x-department-id') || 'police'
+    const auth = await requireAuth(request)
+    const scope = await getHierarchyScope(auth)
 
-    if (!userId) {
+    if (!auth.hierarchyEntityId) {
       return NextResponse.json(
-        { error: 'Unauthorized - missing user ID' },
-        { status: 401 }
+        { error: 'Hierarchy context is required' },
+        { status: 400 }
+      )
+    }
+
+    const departmentId = auth.hierarchyEntityId
+
+    // Validate departmentId is within scope
+    if (scope.allowedEntityIds.length > 0 && !scope.allowedEntityIds.includes(departmentId)) {
+      return NextResponse.json(
+        { error: 'غير مصرح بالوصول لهذا النطاق' },
+        { status: 403 }
       )
     }
 
@@ -253,7 +259,7 @@ export async function POST(request: NextRequest) {
 
     const submission = await createSubmission({
       templateId: template.id,
-      submittedBy: userId,
+      submittedBy: auth.id,
       departmentId,
       formData: validatedData,
     })

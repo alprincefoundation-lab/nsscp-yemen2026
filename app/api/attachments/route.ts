@@ -2,24 +2,17 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireAuth } from '@/lib/auth'
 import { canAccessRecord } from '@/lib/api-utils/record-guard'
-import fs from 'fs'
-import path from 'path'
+import { writeFile, mkdir } from 'fs/promises'
+import { join } from 'path'
 
-const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads')
-
-// Ensure upload directory exists
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true })
-}
+const UPLOAD_DIR = join(process.cwd(), 'public', 'uploads')
 
 // POST /api/attachments — Upload file attachment linked to DataRecord
 export async function POST(request: NextRequest) {
   try {
-    const officerId = request.headers.get('x-officer-id')
-    if (!officerId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
+    const auth = await requireAuth(request)
 
     const formData = await request.formData()
     const file = formData.get('file') as File | null
@@ -32,7 +25,7 @@ export async function POST(request: NextRequest) {
     }
 
     // RBAC check
-    const hasAccess = await canAccessRecord(officerId, recordId)
+    const hasAccess = await canAccessRecord(auth.id, recordId)
     if (!hasAccess) {
       return NextResponse.json({ error: 'Access denied to this record' }, { status: 403 })
     }
@@ -41,10 +34,11 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes)
     const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`
     const filePath = `/uploads/${fileName}`
-    const fullPath = path.join(UPLOAD_DIR, fileName)
+    const fullPath = join(UPLOAD_DIR, fileName)
 
-    // Write file to disk
-    fs.writeFileSync(fullPath, buffer)
+    // Write file to disk (async)
+    await mkdir(UPLOAD_DIR, { recursive: true })
+    await writeFile(fullPath, buffer)
 
     const attachment = await prisma.generalAttachment.create({
       data: {
@@ -56,7 +50,7 @@ export async function POST(request: NextRequest) {
         filePath,
         type,
         description: description || null,
-        uploadedBy: officerId,
+        uploadedBy: auth.id,
         updatedAt: new Date(),
       },
     })
@@ -67,7 +61,7 @@ export async function POST(request: NextRequest) {
         action: 'UPLOAD_ATTACHMENT',
         entityType: 'GeneralAttachment',
         entityId: attachment.id,
-        officerId,
+        officerId: auth.id,
         details: { recordId, fileName, size: buffer.length, type },
         dataRecordId: recordId,
       },
@@ -83,10 +77,7 @@ export async function POST(request: NextRequest) {
 // GET /api/attachments — List attachments for a record
 export async function GET(request: NextRequest) {
   try {
-    const officerId = request.headers.get('x-officer-id')
-    if (!officerId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
+    const auth = await requireAuth(request)
 
     const { searchParams } = new URL(request.url)
     const recordId = searchParams.get('recordId')
@@ -95,7 +86,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'recordId is required' }, { status: 400 })
     }
 
-    const hasAccess = await canAccessRecord(officerId, recordId)
+    const hasAccess = await canAccessRecord(auth.id, recordId)
     if (!hasAccess) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }

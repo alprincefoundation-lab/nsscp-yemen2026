@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createCell, listCells } from '@/lib/services/prison.service'
+import { requireAuth } from '@/lib/auth'
+import { getHierarchyScope } from '@/lib/hierarchy/data-scope'
 import { z } from 'zod'
 
 const CreateCellSchema = z.object({
@@ -14,18 +16,24 @@ const CreateCellSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const auth = await requireAuth(request)
+    const scope = await getHierarchyScope(auth)
 
     const body = await request.json()
     const validatedData = CreateCellSchema.parse(body)
 
-    const cell = await createCell(validatedData)
+    const departmentId = validatedData.departmentId || auth.hierarchyEntityId
+    if (departmentId && scope.allowedEntityIds.length > 0 && !scope.allowedEntityIds.includes(departmentId)) {
+      return NextResponse.json(
+        { error: 'غير مصرح بالوصول لهذا النطاق' },
+        { status: 403 }
+      )
+    }
+
+    const cell = await createCell({
+      ...validatedData,
+      departmentId,
+    })
 
     return NextResponse.json(
       {
@@ -51,12 +59,15 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request)
+    const scope = await getHierarchyScope(auth)
     const searchParams = request.nextUrl.searchParams
     const block = searchParams.get('block')
     const status = searchParams.get('status')
     const departmentId = searchParams.get('departmentId')
 
     const cells = await listCells({
+      ...(scope.allowedEntityIds.length > 0 ? { departmentIds: scope.allowedEntityIds } : {}),
       ...(block && { block }),
       ...(status && { status }),
       ...(departmentId && { departmentId }),

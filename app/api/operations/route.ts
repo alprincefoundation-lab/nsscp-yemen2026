@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
 import { createOperation, listOperations } from '@/lib/services/operations.service'
+import { requireAuth } from '@/lib/auth'
+import { getHierarchyScope } from '@/lib/hierarchy/data-scope'
 import { z } from 'zod'
 
 const CreateOperationSchema = z.object({
@@ -21,21 +24,50 @@ const CreateOperationSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
+    const auth = await requireAuth(request)
+    const scope = await getHierarchyScope(auth)
     const body = await request.json()
     const validatedData = CreateOperationSchema.parse(body)
 
+    const departmentId = validatedData.departmentId || auth.hierarchyEntityId
+    if (!departmentId) {
+      return NextResponse.json(
+        { error: 'Hierarchy context is required' },
+        { status: 400 }
+      )
+    }
+
+    if (scope.allowedEntityIds.length > 0 && !scope.allowedEntityIds.includes(departmentId)) {
+      return NextResponse.json(
+        { error: 'غير مصرح بالوصول لهذا النطاق' },
+        { status: 403 }
+      )
+    }
+
+    if (!['SUPER_ADMIN', 'MINISTRY_ADMIN', 'GOVERNORATE_ADMIN', 'DEPARTMENT_HEAD', 'DEPARTMENT_MANAGER', 'SECTION_HEAD', 'SECTION_MANAGER', 'UNIT_HEAD', 'OFFICER'].includes(auth.role)) {
+      return NextResponse.json(
+        { error: 'ليس لديك صلاحية إنشاء عملية' },
+        { status: 403 }
+      )
+    }
+
     const operation = await createOperation({
       ...validatedData,
+      commanderId: auth.id,
+      departmentId,
       startDate: new Date(validatedData.startDate),
       endDate: validatedData.endDate ? new Date(validatedData.endDate) : undefined,
+    })
+
+    // Audit log
+    await prisma.auditLog.create({
+      data: {
+        officerId: auth.id,
+        action: 'CREATE_OPERATION',
+        entityType: 'Operation',
+        entityId: (operation as any).id,
+        details: { name: validatedData.name, code: validatedData.code, type: validatedData.type, departmentId },
+      },
     })
 
     return NextResponse.json(
@@ -62,6 +94,8 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request)
+    const scope = await getHierarchyScope(auth)
     const searchParams = request.nextUrl.searchParams
     const departmentId = searchParams.get('departmentId')
     const commanderId = searchParams.get('commanderId')
@@ -70,11 +104,20 @@ export async function GET(request: NextRequest) {
     const skip = searchParams.get('skip')
     const take = searchParams.get('take')
 
+    // Validate client-supplied departmentId against scope
+    if (departmentId && scope.allowedEntityIds.length > 0 && !scope.allowedEntityIds.includes(departmentId)) {
+      return NextResponse.json(
+        { error: 'غير مصرح بالوصول لهذا النطاق' },
+        { status: 403 }
+      )
+    }
+
     const operations = await listOperations({
-      ...(departmentId && { departmentId }),
-      ...(commanderId && { commanderId }),
-      ...(status && { status }),
-      ...(type && { type }),
+      ...(departmentId ? { departmentId } : {}),
+      ...(scope.allowedEntityIds.length > 0 ? { departmentIds: scope.allowedEntityIds } : {}),
+      ...(commanderId ? { commanderId } : {}),
+      ...(status ? { status } : {}),
+      ...(type ? { type } : {}),
       skip: skip ? parseInt(skip) : undefined,
       take: take ? parseInt(take) : undefined,
     })

@@ -5,9 +5,20 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuditLogs } from '@/lib/core/audit-engine';
+import { getAuthenticatedUser } from '@/lib/auth';
+import { Permission, hasPermission } from '@/lib/permissions';
 
 export async function GET(request: NextRequest) {
     try {
+        const user = await getAuthenticatedUser(request);
+        if (!user) {
+            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+        }
+
+        if (!hasPermission(user.role, Permission.VIEW_AUDIT_LOGS)) {
+            return NextResponse.json({ error: 'ليس لديك صلاحية لعرض السجل التدقيقي' }, { status: 403 });
+        }
+
         const { searchParams } = new URL(request.url);
         const page = parseInt(searchParams.get('page') || '1', 10);
         const pageSize = parseInt(searchParams.get('pageSize') || '50', 10);

@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth'
+import { getHierarchyScope } from '@/lib/hierarchy/data-scope'
 import {
   createFormSubmission,
   listFormSubmissions,
@@ -19,8 +21,17 @@ const CreateSubmissionSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAuth(request)
+    const scope = await getHierarchyScope(auth)
     const body = await request.json()
     const validatedData = CreateSubmissionSchema.parse(body)
+
+    if (validatedData.departmentId && scope.allowedEntityIds.length > 0 && !scope.allowedEntityIds.includes(validatedData.departmentId)) {
+      return NextResponse.json(
+        { error: 'غير مصرح بالوصول لهذا النطاق' },
+        { status: 403 }
+      )
+    }
 
     const submission = await createFormSubmission(validatedData)
 

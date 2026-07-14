@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { checkRateLimit, RATE_LIMITS } from '@/lib/resilience/rate-limiter'
 
 // ============================================================================
 // NSSCP Unified Authentication & Authorization Proxy
@@ -7,35 +8,16 @@ import { NextRequest, NextResponse } from 'next/server'
 //  - Session validation (via nsscp_session cookie)
 //  - JWT token verification
 //  - Authorization (role checks for restricted routes)
-//  - Rate limiting for API endpoints
+//  - Redis-backed rate limiting for API endpoints
 //  - Security headers
 //  - Public/Protected/Restricted route segregation
 // ============================================================================
-
-const RATE_LIMIT_MAP = new Map<string, { count: number; resetAt: number }>()
 
 // ─── RATE LIMITING ────────────────────────────────────────────────────────
 
 function getRateLimitKey(request: NextRequest): string {
   const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
   return `${ip}:${request.nextUrl.pathname}`
-}
-
-function checkRateLimit(key: string, maxRequests: number, windowMs: number): boolean {
-  const now = Date.now()
-  const entry = RATE_LIMIT_MAP.get(key)
-
-  if (!entry || now > entry.resetAt) {
-    RATE_LIMIT_MAP.set(key, { count: 1, resetAt: now + windowMs })
-    return true
-  }
-
-  if (entry.count >= maxRequests) {
-    return false
-  }
-
-  entry.count += 1
-  return true
 }
 
 // ─── SECURITY HEADERS ─────────────────────────────────────────────────────
@@ -73,16 +55,16 @@ const PUBLIC_ROUTES = new Set(['/', '/login'])
 const PUBLIC_PREFIXES = ['/_next', '/api/auth/login', '/api/auth/logout', '/api/health', '/favicon.ico', '/icon']
 
 const RESTRICTED_ROUTES: Record<string, string[]> = {
-  '/dashboard/users': ['SUPER_ADMIN', 'GOVERNORATE_ADMIN'],
-  '/dashboard/roles': ['SUPER_ADMIN'],
-  '/dashboard/permissions': ['SUPER_ADMIN'],
-  '/dashboard/settings': ['SUPER_ADMIN', 'GOVERNORATE_ADMIN'],
-  '/api/users': ['SUPER_ADMIN', 'GOVERNORATE_ADMIN'],
-  '/api/roles': ['SUPER_ADMIN'],
-  '/api/role-permissions': ['SUPER_ADMIN'],
-  '/api/user-permissions': ['SUPER_ADMIN'],
-  '/api/settings': ['SUPER_ADMIN', 'GOVERNORATE_ADMIN'],
-  '/api/systems': ['SUPER_ADMIN'],
+  '/dashboard/users': ['SUPER_ADMIN', 'MINISTRY_ADMIN', 'GOVERNORATE_ADMIN'],
+  '/dashboard/roles': ['SUPER_ADMIN', 'MINISTRY_ADMIN'],
+  '/dashboard/permissions': ['SUPER_ADMIN', 'MINISTRY_ADMIN'],
+  '/dashboard/settings': ['SUPER_ADMIN', 'MINISTRY_ADMIN', 'GOVERNORATE_ADMIN'],
+  '/api/users': ['SUPER_ADMIN', 'MINISTRY_ADMIN', 'GOVERNORATE_ADMIN'],
+  '/api/roles': ['SUPER_ADMIN', 'MINISTRY_ADMIN'],
+  '/api/role-permissions': ['SUPER_ADMIN', 'MINISTRY_ADMIN'],
+  '/api/user-permissions': ['SUPER_ADMIN', 'MINISTRY_ADMIN'],
+  '/api/settings': ['SUPER_ADMIN', 'MINISTRY_ADMIN', 'GOVERNORATE_ADMIN'],
+  '/api/systems': ['SUPER_ADMIN', 'MINISTRY_ADMIN'],
 }
 
 function isPublicRoute(path: string): boolean {
@@ -135,22 +117,25 @@ export async function proxy(request: NextRequest) {
     const isUploadPath = path.startsWith('/api/attachments') && request.method === 'POST'
     const isMutatingApi = request.method !== 'GET'
 
-    // Rate limiting
+    // Rate limiting — uses Redis (with in-memory fallback)
     if (isLoginPath) {
       const key = getRateLimitKey(request)
-      if (!checkRateLimit(key, 10, 60_000)) {
+      const { allowed, limit, resetSeconds } = await checkRateLimit(key, RATE_LIMITS.LOGIN)
+      if (!allowed) {
         return NextResponse.json({ error: 'Too many login attempts. Try again later.' }, { status: 429 })
       }
-      response.headers.set('X-RateLimit-Limit', '10')
-      response.headers.set('X-RateLimit-Reset', String(Math.ceil(Date.now() / 1000) + 60))
+      response.headers.set('X-RateLimit-Limit', String(limit))
+      response.headers.set('X-RateLimit-Reset', String(Math.ceil(Date.now() / 1000) + resetSeconds))
     } else if (isUploadPath) {
       const key = getRateLimitKey(request)
-      if (!checkRateLimit(key, 30, 60_000)) {
+      const { allowed } = await checkRateLimit(key, RATE_LIMITS.UPLOAD)
+      if (!allowed) {
         return NextResponse.json({ error: 'Too many uploads. Try again later.' }, { status: 429 })
       }
     } else if (isMutatingApi) {
       const key = getRateLimitKey(request)
-      if (!checkRateLimit(key, 60, 60_000)) {
+      const { allowed } = await checkRateLimit(key, RATE_LIMITS.MUTATING_API)
+      if (!allowed) {
         return NextResponse.json({ error: 'Rate limit exceeded. Try again later.' }, { status: 429 })
       }
     }

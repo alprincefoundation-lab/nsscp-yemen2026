@@ -6,6 +6,7 @@ import { createHierarchySchema, updateHierarchySchema } from '@/lib/schemas/hier
 import * as hierarchyService from '@/lib/services/hierarchy.service';
 
 export const GET = withErrorHandler(async () => {
+  await authorizeAction(Permission.VIEW_HIERARCHY);
   const data = await hierarchyService.getAllHierarchyEntities();
   return NextResponse.json({ success: true, data });
 });

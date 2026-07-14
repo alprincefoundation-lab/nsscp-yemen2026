@@ -5,6 +5,7 @@
 // ============================================================================
 
 import { PrismaClient } from '@prisma/client'
+import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
@@ -102,20 +103,30 @@ async function main() {
   })
   console.log(`  ✅ Level6Unit: ${dna.name}`)
 
-  // 4. OFFICERS
+  // 4. OFFICERS — bcrypt hashing; preserve existing passwordHash on re-seed
+  const adminId = 'OFF-ADMIN'
+  const existingAdmin = await prisma.officer.findUnique({ where: { id: adminId }, select: { passwordHash: true } })
+  const adminPassword = 'Admin@123456'
+  const adminPasswordHash = existingAdmin?.passwordHash || await bcrypt.hash(adminPassword, 12)
+
   const admin = await prisma.officer.upsert({
-    where: { id: 'OFF-ADMIN' },
+    where: { id: adminId },
     update: { name: 'admin', rank: 'لواء', role: 'SUPER_ADMIN', department: 'القيادة المركزية', accessLevel: 1, updatedAt: now },
-    create: { id: 'OFF-ADMIN', name: 'admin', rank: 'لواء', role: 'SUPER_ADMIN', department: 'القيادة المركزية', accessLevel: 1, updatedAt: now },
+    create: { id: adminId, name: 'admin', passwordHash: adminPasswordHash, rank: 'لواء', role: 'SUPER_ADMIN', department: 'القيادة المركزية', accessLevel: 1, updatedAt: now },
   })
-  console.log(`✅ Admin Officer: ${admin.name} (${admin.rank})`)
+  console.log(`✅ Admin Officer: ${admin.name} (${admin.rank})${existingAdmin ? ' — preserved' : ' — passwordHash set'}`)
+
+  const invId = 'OFF-INV'
+  const existingInv = await prisma.officer.findUnique({ where: { id: invId }, select: { passwordHash: true } })
+  const invPassword = 'investigator'
+  const invPasswordHash = existingInv?.passwordHash || await bcrypt.hash(invPassword, 12)
 
   const investigator = await prisma.officer.upsert({
-    where: { id: 'OFF-INV' },
+    where: { id: invId },
     update: { name: 'investigator', rank: 'مقدم', role: 'OFFICER', department: inv.name, accessLevel: 5, updatedAt: now },
-    create: { id: 'OFF-INV', name: 'investigator', rank: 'مقدم', role: 'OFFICER', department: inv.name, accessLevel: 5, updatedAt: now },
+    create: { id: invId, name: 'investigator', passwordHash: invPasswordHash, rank: 'مقدم', role: 'OFFICER', department: inv.name, accessLevel: 5, updatedAt: now },
   })
-  console.log(`✅ Investigator: ${investigator.name} (${investigator.rank})`)
+  console.log(`✅ Investigator: ${investigator.name} (${investigator.rank})${existingInv ? ' — preserved' : ' — passwordHash set'}`)
 
   // 5. LEVEL ASSIGNMENTS
   await prisma.levelAssignment.upsert({
@@ -132,8 +143,11 @@ async function main() {
   })
   console.log('✅ LevelAssignment: Investigator → CID (view+edit)')
 
-  // 6. SAMPLE DATA RECORDS (استمارات)
-  const rec1 = await prisma.dataRecord.upsert({
+  // 6–9. DEMO/DEVELOPMENT DATA — skipped in production
+  const isDevelopment = process.env.NODE_ENV !== 'production'
+  if (isDevelopment) {
+    // 6. SAMPLE DATA RECORDS (استمارات)
+    const rec1 = await prisma.dataRecord.upsert({
     where: { id: 'DR-001' },
     update: { data: { title: 'محضر تحقيق - قضية 2024/001', details: 'تفاصيل التحقيق في القضية...' }, updatedAt: now },
     create: { id: 'DR-001', level6UnitId: dna.id, recordType: 'INVESTIGATION_REPORT', data: { title: 'محضر تحقيق - قضية 2024/001', details: 'تفاصيل التحقيق في القضية...' }, status: 'active', securityLevel: 'internal', updatedAt: now },
@@ -170,17 +184,28 @@ async function main() {
     create: { id: 'RPT-001', title: 'تقرير الحالة الأمنية - يوليو 2026', description: 'تقرير شهري شامل للحالة الأمنية', department: 'الإدارة العامة للبحث الجنائي', status: 'active', priority: 'HIGH' },
   })
   console.log('✅ Report: تقرير الحالة الأمنية')
+  } // end demo/development data block
 
-  // 10. AUDIT LOG
-  await prisma.auditLog.create({
-    data: { action: 'SEED', entityType: 'SYSTEM', entityId: 'SEED-001', officerId: admin.id, details: { message: 'Database seed completed — 22 provinces, CID hierarchy, officers, wanted persons' } },
+  // 10. AUDIT LOG — idempotent: only one SEED-001 entry ever
+  const existingAudit = await prisma.auditLog.findFirst({
+    where: { entityId: 'SEED-001', action: 'SEED' },
+    select: { id: true },
   })
+
+  if (!existingAudit) {
+    await prisma.auditLog.create({
+      data: { action: 'SEED', entityType: 'SYSTEM', entityId: 'SEED-001', officerId: admin.id, details: { message: 'Database seed completed — 22 provinces, CID hierarchy, officers, wanted persons' } },
+    })
+    console.log('✅ AuditLog: SEED record created')
+  } else {
+    console.log('✅ AuditLog: SEED record already exists (skipped)')
+  }
 
   console.log('')
   console.log('🌱 Seed completed successfully!')
   console.log('══════════════════════════════════════════════')
-  console.log(`  Admin login:    username="${admin.name}"  password="${admin.name}"`)
-  console.log(`  Investigator:   username="${investigator.name}"  password="${investigator.name}"`)
+  console.log(`  Admin login:    username="admin"  password="Admin@123456"`)
+  console.log(`  Investigator:   username="investigator"  password="investigator"`)
   console.log('══════════════════════════════════════════════')
 }
 

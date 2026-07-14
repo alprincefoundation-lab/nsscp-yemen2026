@@ -9,10 +9,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
     }
 
+    const canViewAllSessions = ['SUPER_ADMIN', 'MINISTRY_ADMIN', 'GOVERNORATE_ADMIN'].includes(user.role);
+
     const sessions = await prisma.authSession.findMany({
       where: {
         isValid: true,
         expiresAt: { gt: new Date() },
+        ...(canViewAllSessions ? {} : { officerId: user.id }),
       },
       orderBy: { lastActive: 'desc' },
       include: {
@@ -38,6 +41,9 @@ export async function GET(request: NextRequest) {
         role: session.role,
         department: session.officer.department || session.hierarchyEntityName || null,
         rank: session.officer.rank || null,
+        hierarchyEntityId: session.hierarchyEntityId || null,
+        hierarchyEntityName: session.hierarchyEntityName || null,
+        hierarchyEntityType: session.hierarchyEntityType || null,
         lastActive: session.lastActive.toISOString(),
         createdAt: session.createdAt.toISOString(),
         expiresAt: session.expiresAt.toISOString(),

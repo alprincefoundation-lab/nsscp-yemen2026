@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { apiGuard } from '@/lib/hierarchy/guard'
 import { extractRequestMeta } from '@/lib/core/audit-engine'
+import { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,20 +26,8 @@ type LegacyCaseRow = {
   hierarchyEntityId: string | null
 }
 
-function escapeSqlLiteral(value: string): string {
-  return value.replace(/'/g, "''")
-}
-
-function sqlValue(value: string | null | undefined): string {
-  if (value === null || value === undefined || value === '') {
-    return 'NULL'
-  }
-
-  return `'${escapeSqlLiteral(value)}'`
-}
-
 async function findCaseById(id: string): Promise<LegacyCaseRow | null> {
-  const rows = await prisma.$queryRawUnsafe<LegacyCaseRow[]>(`
+  const rows = await prisma.$queryRaw<LegacyCaseRow[]>(Prisma.sql`
     SELECT
       "id",
       "caseNumber",
@@ -54,7 +43,7 @@ async function findCaseById(id: string): Promise<LegacyCaseRow | null> {
       "assignedOfficerId",
       "hierarchyEntityId"
     FROM "Case"
-    WHERE "id" = ${sqlValue(id)}
+    WHERE "id" = ${id}
     LIMIT 1
   `)
 
@@ -66,26 +55,26 @@ async function replaceAssignment(caseId: string, officerId: string | null) {
     return
   }
 
-  const existing = await prisma.$queryRawUnsafe<{ id: string }[]>(`
+  const existing = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
     SELECT "id"
     FROM "CaseAssignment"
-    WHERE "caseId" = ${sqlValue(caseId)}
+    WHERE "caseId" = ${caseId}
     ORDER BY "assignedAt" DESC
     LIMIT 1
   `)
 
   if (existing[0]?.id) {
-    await prisma.$executeRawUnsafe(`
+    await prisma.$executeRaw(Prisma.sql`
       UPDATE "CaseAssignment"
-      SET "officerId" = ${sqlValue(officerId)},
+      SET "officerId" = ${officerId},
           "role" = 'investigator',
           "assignedAt" = NOW()
-      WHERE "id" = ${sqlValue(existing[0].id)}
+      WHERE "id" = ${existing[0].id}
     `)
     return
   }
 
-  await prisma.$executeRawUnsafe(`
+  await prisma.$executeRaw(Prisma.sql`
     INSERT INTO "CaseAssignment" (
       "id",
       "caseId",
@@ -93,9 +82,9 @@ async function replaceAssignment(caseId: string, officerId: string | null) {
       "role",
       "assignedAt"
     ) VALUES (
-      ${sqlValue(randomUUID())},
-      ${sqlValue(caseId)},
-      ${sqlValue(officerId)},
+      ${randomUUID()},
+      ${caseId},
+      ${officerId},
       'investigator',
       NOW()
     )
@@ -108,7 +97,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const guard = await apiGuard(request)
+    const guard = await apiGuard(request, { permission: 'READ_CASE' })
     if ('error' in guard) return guard.error
 
     const { id } = await params
@@ -116,6 +105,15 @@ export async function GET(
 
     if (!caseItem) {
       return NextResponse.json({ error: 'Case not found' }, { status: 404 })
+    }
+
+    const allowedIds = guard.dataScope.allowedEntityIds
+    const canAccess = allowedIds.length === 0
+      || allowedIds.includes(caseItem.hierarchyEntityId || '')
+      || caseItem.assignedOfficerId === guard.user.id
+
+    if (!canAccess) {
+      return NextResponse.json({ error: 'غير مصرح بالوصول لهذه القضية' }, { status: 403 })
     }
 
     return NextResponse.json({ success: true, data: caseItem })
@@ -133,7 +131,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const guard = await apiGuard(request)
+    const guard = await apiGuard(request, { permission: 'UPDATE_CASE' })
     if ('error' in guard) return guard.error
 
     const { user } = guard
@@ -146,59 +144,68 @@ export async function PATCH(
       return NextResponse.json({ error: 'القضية غير موجودة' }, { status: 404 })
     }
 
-    const updateParts: string[] = ['"updatedAt" = NOW()']
+    const allowedIds = guard.dataScope.allowedEntityIds
+    const canAccess = allowedIds.length === 0
+      || allowedIds.includes(existing.hierarchyEntityId || '')
+      || existing.assignedOfficerId === user.id
+
+    if (!canAccess) {
+      return NextResponse.json({ error: 'غير مصرح بالوصول لهذه القضية' }, { status: 403 })
+    }
+
+    const updateParts: Prisma.Sql[] = [Prisma.sql`"updatedAt" = NOW()`]
     const updatedFields: string[] = []
 
     if (body.title !== undefined) {
-      updateParts.push(`"title" = ${sqlValue(body.title)}`)
+      updateParts.push(Prisma.sql`"title" = ${body.title}`)
       updatedFields.push('title')
     }
 
     if (body.description !== undefined) {
-      updateParts.push(`"description" = ${sqlValue(body.description)}`)
+      updateParts.push(Prisma.sql`"description" = ${body.description}`)
       updatedFields.push('description')
     }
 
     if (body.type !== undefined) {
-      updateParts.push(`"caseType" = ${sqlValue(body.type)}`)
+      updateParts.push(Prisma.sql`"caseType" = ${body.type}`)
       updatedFields.push('caseType')
     }
 
     if (body.severity !== undefined) {
-      updateParts.push(`"priority" = ${sqlValue(String(body.severity).toLowerCase())}`)
+      updateParts.push(Prisma.sql`"priority" = ${String(body.severity).toLowerCase()}`)
       updatedFields.push('priority')
     }
 
     if (body.departmentId !== undefined) {
-      updateParts.push(`"hierarchyEntityId" = ${sqlValue(body.departmentId || null)}`)
+      updateParts.push(Prisma.sql`"hierarchyEntityId" = ${body.departmentId || null}`)
       updatedFields.push('hierarchyEntityId')
     }
 
     if (body.assignedToId !== undefined) {
-      updateParts.push(`"assignedOfficerId" = ${sqlValue(body.assignedToId || null)}`)
+      updateParts.push(Prisma.sql`"assignedOfficerId" = ${body.assignedToId || null}`)
       updatedFields.push('assignedOfficerId')
     }
 
     if (body.province !== undefined) {
-      updateParts.push(`"governorateId" = ${sqlValue(body.province || null)}`)
+      updateParts.push(Prisma.sql`"governorateId" = ${body.province || null}`)
       updatedFields.push('governorateId')
     }
 
     if (body.district !== undefined) {
-      updateParts.push(`"districtId" = ${sqlValue(body.district || null)}`)
+      updateParts.push(Prisma.sql`"districtId" = ${body.district || null}`)
       updatedFields.push('districtId')
     }
 
     if (body.status !== undefined) {
-      updateParts.push(`"status" = ${sqlValue(body.status)}`)
+      updateParts.push(Prisma.sql`"status" = ${body.status}`)
       updatedFields.push('status')
     }
 
     if (updateParts.length > 1) {
-      await prisma.$executeRawUnsafe(`
+      await prisma.$executeRaw(Prisma.sql`
         UPDATE "Case"
-        SET ${updateParts.join(', ')}
-        WHERE "id" = ${sqlValue(id)}
+        SET ${Prisma.join(updateParts, ', ')}
+        WHERE "id" = ${id}
       `)
     }
 
@@ -238,7 +245,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const guard = await apiGuard(request)
+    const guard = await apiGuard(request, { permission: 'DELETE_CASE' })
     if ('error' in guard) return guard.error
 
     const { user } = guard
@@ -250,10 +257,19 @@ export async function DELETE(
       return NextResponse.json({ error: 'القضية غير موجودة' }, { status: 404 })
     }
 
-    await prisma.$executeRawUnsafe(`
+    const allowedIds = guard.dataScope.allowedEntityIds
+    const canAccess = allowedIds.length === 0
+      || allowedIds.includes(existing.hierarchyEntityId || '')
+      || existing.assignedOfficerId === user.id
+
+    if (!canAccess) {
+      return NextResponse.json({ error: 'غير مصرح بالوصول لهذه القضية' }, { status: 403 })
+    }
+
+    await prisma.$executeRaw(Prisma.sql`
       UPDATE "Case"
       SET "status" = 'archived', "updatedAt" = NOW()
-      WHERE "id" = ${sqlValue(id)}
+      WHERE "id" = ${id}
     `)
 
     await prisma.auditLog.create({

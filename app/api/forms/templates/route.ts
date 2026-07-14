@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth'
+import { getHierarchyScope } from '@/lib/hierarchy/data-scope'
 import { createFormTemplate, listFormTemplates } from '@/lib/services/forms.service'
 import { z } from 'zod'
 
@@ -36,6 +38,8 @@ const CreateTemplateSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAuth(request)
+    const scope = await getHierarchyScope(auth)
     const body = await request.json()
     const validatedData = CreateTemplateSchema.parse(body)
 
@@ -65,6 +69,8 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request)
+    const scope = await getHierarchyScope(auth)
     const searchParams = request.nextUrl.searchParams
     const formType = searchParams.get('formType')
     const departmentId = searchParams.get('departmentId')

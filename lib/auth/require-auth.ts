@@ -3,70 +3,88 @@ import { headers, cookies } from "next/headers";
 import type { AuthenticatedUser } from "./auth.types";
 import { getSession } from "./session-manager";
 import { prisma } from "@/lib/prisma";
+import { verifyAccessToken, resolveOfficerHierarchyContext } from "@/lib/auth";
 
 /**
- * Normalize headers into plain object
- */
-function normalizeHeaders(h: Headers) {
-  const obj: Record<string, string> = {};
-  h.forEach((value, key) => {
-    obj[key.toLowerCase()] = value;
-  });
-  return obj;
-}
-
-/**
- * Build user from headers
- */
-function buildUser(h: Record<string, string>): AuthenticatedUser | null {
-  if (!h["x-hierarchy-user-id"]) return null;
-
-  return {
-    id: h["x-hierarchy-user-id"],
-    role: h["x-hierarchy-role"] || "user",
-    username: h["x-hierarchy-username"] || "",
-    hierarchyEntityId: h["x-hierarchy-entity-id"],
-    hierarchyEntityName: h["x-hierarchy-entity-name"]
-      ? decodeURIComponent(h["x-hierarchy-entity-name"])
-      : undefined,
-    hierarchyEntityType: h["x-hierarchy-entity-type"],
-    fullName: h["x-hierarchy-fullname"]
-      ? decodeURIComponent(h["x-hierarchy-fullname"])
-      : undefined,
-  };
-}
-
-/**
- * Main Auth Resolver (SAFE VERSION)
+ * PRODUCTION AUTH RESOLVER — NSSCP Final Security Hardening
+ *
+ * Authenticated user resolution is ALWAYS derived from:
+ *   1. Session token (nsscp_session cookie) — preferred path
+ *   2. JWT Bearer token (Authorization header) — fallback
+ *
+ * NEVER trusts:
+ *   - x-hierarchy-* headers (removed — severe impersonation risk)
+ *   - client-supplied user IDs
+ *   - client-supplied department IDs
  */
 export async function getUserFromRequest(
   req?: NextRequest
 ): Promise<AuthenticatedUser | null> {
   try {
-    // 1. From request headers
+    // 1. From request cookies (NextRequest)
+    let token: string | null = null;
     if (req) {
-      const user = buildUser(normalizeHeaders(req.headers));
-      if (user) return user;
+      token = req.cookies.get("nsscp_session")?.value ?? null;
     }
 
-    // 2. From next/headers
-    const headerList = await headers();
-    const userFromHeaders = buildUser(normalizeHeaders(headerList));
-    if (userFromHeaders) return userFromHeaders;
+    // 2. From next/headers cookies
+    if (!token) {
+      try {
+        const cookieStore = await cookies();
+        token = cookieStore.get("nsscp_session")?.value ?? null;
+      } catch {
+        token = null;
+      }
+    }
 
-    // 3. From cookies session token
-    const cookieStore = await cookies();
-    const token = cookieStore.get("nsscp_session")?.value;
+    // 3. From Authorization header (JWT bearer)
+    if (!token) {
+      let authHeader: string | null = null;
+      if (req) {
+        authHeader = req.headers.get("authorization") ?? null;
+      }
+      if (!authHeader) {
+        try {
+          const headerList = await headers();
+          authHeader = headerList.get("authorization") ?? null;
+        } catch {
+          authHeader = null;
+        }
+      }
+      if (authHeader) {
+        const parts = authHeader.split(" ");
+        if (parts.length === 2 && parts[0].toLowerCase() === "bearer") {
+          token = parts[1];
+        }
+      }
+    }
 
     if (!token) return null;
 
+    // Try session first, then JWT
     const session = await getSession(token);
-    if (!session || !session.isValid || session.expiresAt <= Date.now()) {
+    let userId = session?.userId ?? null;
+    let hierarchyEntityId = session?.hierarchyEntityId ?? null;
+    let hierarchyEntityName = session?.hierarchyEntityName ?? null;
+    let hierarchyEntityType = session?.hierarchyEntityType ?? null;
+
+    if (!userId) {
+      const decoded = verifyAccessToken(token);
+      if (!decoded) {
+        return null;
+      }
+      userId = decoded.id;
+      hierarchyEntityId = decoded.hierarchyEntityId ?? hierarchyEntityId;
+      hierarchyEntityName = decoded.hierarchyEntityName ?? hierarchyEntityName;
+      hierarchyEntityType = decoded.hierarchyEntityType ?? hierarchyEntityType;
+    }
+
+    if (!userId) {
       return null;
     }
 
     const officer = await prisma.officer.findUnique({
-      where: { id: session.userId },
+      where: { id: userId },
       select: {
         id: true,
         name: true,
@@ -78,13 +96,21 @@ export async function getUserFromRequest(
 
     if (!officer) return null;
 
+    const resolvedHierarchy = hierarchyEntityId
+      ? {
+          hierarchyEntityId,
+          hierarchyEntityName,
+          hierarchyEntityType,
+        }
+      : await resolveOfficerHierarchyContext(officer.id);
+
     return {
       id: officer.id,
       role: officer.role,
       username: officer.name,
-      hierarchyEntityId: session.hierarchyEntityId,
-      hierarchyEntityName: session.hierarchyEntityName,
-      hierarchyEntityType: session.hierarchyEntityType,
+      hierarchyEntityId: resolvedHierarchy.hierarchyEntityId ?? undefined,
+      hierarchyEntityName: resolvedHierarchy.hierarchyEntityName ?? undefined,
+      hierarchyEntityType: resolvedHierarchy.hierarchyEntityType ?? undefined,
       fullName: officer.name,
       rank: officer.rank,
       badgeNumber: officer.id,

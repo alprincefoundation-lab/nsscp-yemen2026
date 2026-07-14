@@ -75,6 +75,7 @@ export class WantedPersonsService {
     status?: string
     dangerLevel?: string
     query?: string
+    departmentIds?: string[]
     skip?: number
     take?: number
   }) {

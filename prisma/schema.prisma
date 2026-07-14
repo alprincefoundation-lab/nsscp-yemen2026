@@ -170,6 +170,7 @@ model MovementReport {
 model Officer {
   id              String            @id
   name            String
+  passwordHash    String?
   rank            String
   role            String
   department      String

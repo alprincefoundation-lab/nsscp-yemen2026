@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { apiGuard } from '@/lib/hierarchy/guard'
 import { auditSensitiveAction, auditAccessDenied, rbacGuard } from '@/lib/logging/audit'
+import { Prisma } from '@prisma/client'
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -38,36 +39,8 @@ interface DashboardStats {
   };
 }
 
-function escapeSqlLiteral(value: string): string {
-  return value.replace(/'/g, "''")
-}
-
-function sqlValue(value: string | null | undefined): string {
-  if (value === null || value === undefined || value === '') {
-    return 'NULL'
-  }
-
-  return `'${escapeSqlLiteral(value)}'`
-}
-
-function buildHierarchyClause(nodeIds: string[] | null) {
-  if (!nodeIds || nodeIds.length === 0) {
-    return ''
-  }
-
-  return `WHERE "hierarchyEntityId" IN (${nodeIds.map(sqlValue).join(', ')})`
-}
-
-function buildDepartmentClause(nodeIds: string[] | null) {
-  if (!nodeIds || nodeIds.length === 0) {
-    return ''
-  }
-
-  return `WHERE "departmentId" IN (${nodeIds.map(sqlValue).join(', ')})`
-}
-
-async function countRows(query: string): Promise<number> {
-  const rows = await prisma.$queryRawUnsafe<{ count: number }[]>(query)
+async function countRows(query: Prisma.Sql): Promise<number> {
+  const rows = await prisma.$queryRaw<{ count: number }[]>(query)
   return Number(rows[0]?.count ?? 0)
 }
 
@@ -78,7 +51,7 @@ export async function GET(request: NextRequest) {
     // 1. Authenticate & get scope
     const guard = await apiGuard(request);
     if ('error' in guard) return guard.error;
-    const { user, engine, scope } = guard;
+    const { user, dataScope } = guard;
 
     // 2. Parse query params
     const { searchParams } = new URL(request.url);
@@ -110,8 +83,8 @@ export async function GET(request: NextRequest) {
     }
 
     // 5. Governorate-specific — verify hierarchy permission (double check)
-    const canAccess = await engine.canAccessHierarchy(nodeId);
-    if (!canAccess) {
+    const descendantIds = dataScope.allowedEntityIds;
+    if (descendantIds.length > 0 && !descendantIds.includes(nodeId)) {
       // Log the unauthorised attempt before returning 403
       return auditAccessDenied(
         request, user, 'READ', 'STATS', nodeId,
@@ -120,10 +93,10 @@ export async function GET(request: NextRequest) {
     }
 
     // 6. Fetch the department name from the legacy Department table
-    const departments = await prisma.$queryRawUnsafe<{ id: string; name: string }[]>(`
+    const departments = await prisma.$queryRaw<{ id: string; name: string }[]>(Prisma.sql`
       SELECT "id", "name"
       FROM "Department"
-      WHERE "id" = ${sqlValue(nodeId)}
+      WHERE "id" = ${nodeId}
       LIMIT 1
     `)
 
@@ -137,7 +110,6 @@ export async function GET(request: NextRequest) {
     }
 
     // 7. Expand scope to include all descendants under this department
-    const descendantIds = await engine.getDescendantIds();
     const stats = await fetchScopedStats(nodeId === 'GLOBAL' ? null : descendantIds);
 
     // Log successful access to department-scoped stats
@@ -185,25 +157,31 @@ export async function GET(request: NextRequest) {
 // ─── Helpers ────────────────────────────────────────────────────────
 
 async function fetchScopedStats(descendantIds: string[] | null) {
-  const caseScope = buildHierarchyClause(descendantIds)
-  const officerScope = buildDepartmentClause(descendantIds)
-  const departmentScope = buildDepartmentClause(descendantIds)
+  const caseScope = descendantIds && descendantIds.length > 0
+    ? Prisma.sql`WHERE "hierarchyEntityId" IN (${Prisma.join(descendantIds)})`
+    : Prisma.empty
+  const officerScope = descendantIds && descendantIds.length > 0
+    ? Prisma.sql`WHERE "department" IN (${Prisma.join(descendantIds)})`
+    : Prisma.empty
+  const departmentScope = descendantIds && descendantIds.length > 0
+    ? Prisma.sql`WHERE "id" IN (${Prisma.join(descendantIds)})`
+    : Prisma.empty
   const sectionScope = descendantIds && descendantIds.length > 0
-    ? `WHERE "departmentId" IN (${descendantIds.map(sqlValue).join(', ')})`
-    : ''
+    ? Prisma.sql`WHERE "departmentId" IN (${Prisma.join(descendantIds)})`
+    : Prisma.empty
   const unitScope = descendantIds && descendantIds.length > 0
-    ? `
+    ? Prisma.sql`
       WHERE "sectionId" IN (
         SELECT "id"
         FROM "Section"
         ${sectionScope}
       )
     `
-    : ''
+    : Prisma.empty
   const recentFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
   const recentIncidentScope = descendantIds && descendantIds.length > 0
-    ? `${buildHierarchyClause(descendantIds)} AND`
-    : 'WHERE'
+    ? Prisma.sql`WHERE "hierarchyEntityId" IN (${Prisma.join(descendantIds)}) AND`
+    : Prisma.sql`WHERE`
 
   const [
     totalCases,
@@ -218,52 +196,58 @@ async function fetchScopedStats(descendantIds: string[] | null) {
     units,
     recentIncidents,
   ] = await Promise.all([
-    countRows(`
+    countRows(Prisma.sql`
       SELECT COUNT(*)::int AS count
       FROM "Case"
       ${caseScope}
     `),
-    countRows(`
+    countRows(Prisma.sql`
       SELECT COUNT(*)::int AS count
       FROM "Case"
-      ${caseScope}${caseScope ? ' AND' : 'WHERE'} "status" IN ('OPEN', 'UNDER_INVESTIGATION', 'PENDING_REVIEW')
+      ${caseScope}
+      ${descendantIds && descendantIds.length > 0 ? Prisma.sql`AND` : Prisma.sql`WHERE`}
+      "status" IN ('OPEN', 'UNDER_INVESTIGATION', 'PENDING_REVIEW')
     `),
-    countRows(`
+    countRows(Prisma.sql`
       SELECT COUNT(*)::int AS count
       FROM "Case"
-      ${caseScope}${caseScope ? ' AND' : 'WHERE'} "status" IN ('CLOSED', 'ARCHIVED')
+      ${caseScope}
+      ${descendantIds && descendantIds.length > 0 ? Prisma.sql`AND` : Prisma.sql`WHERE`}
+      "status" IN ('CLOSED', 'ARCHIVED')
     `),
-    countRows(`
+    countRows(Prisma.sql`
       SELECT COUNT(*)::int AS count
       FROM "Case"
-      ${caseScope}${caseScope ? ' AND' : 'WHERE'} "priority" IN ('HIGH', 'CRITICAL')
+      ${caseScope}
+      ${descendantIds && descendantIds.length > 0 ? Prisma.sql`AND` : Prisma.sql`WHERE`}
+      "priority" IN ('HIGH', 'CRITICAL')
     `),
     prisma.wantedPerson.count().catch(() => 0),
     prisma.wantedPerson.count({ where: { status: 'مطلوب حياً' } as any }).catch(() => 0),
-    countRows(`
+    countRows(Prisma.sql`
       SELECT COUNT(*)::int AS count
       FROM "Officer"
       ${officerScope}
     `),
-    countRows(`
+    countRows(Prisma.sql`
       SELECT COUNT(*)::int AS count
       FROM "Department"
       ${departmentScope}
     `),
-    countRows(`
+    countRows(Prisma.sql`
       SELECT COUNT(*)::int AS count
       FROM "Section"
       ${sectionScope}
     `),
-    countRows(`
+    countRows(Prisma.sql`
       SELECT COUNT(*)::int AS count
       FROM "Unit"
       ${unitScope}
     `),
-    countRows(`
+    countRows(Prisma.sql`
       SELECT COUNT(*)::int AS count
       FROM "Incident"
-      ${recentIncidentScope} "createdAt" >= ${sqlValue(recentFrom)}
+      ${recentIncidentScope} "createdAt" >= ${recentFrom}
     `),
   ]);
 

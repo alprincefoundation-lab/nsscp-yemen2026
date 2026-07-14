@@ -129,6 +129,7 @@ export async function getOperation(operationId: string) {
 
 export async function listOperations(filters?: {
   departmentId?: string
+  departmentIds?: string[]
   commanderId?: string
   status?: string
   type?: string
@@ -137,7 +138,11 @@ export async function listOperations(filters?: {
 }) {
   const operations = await prisma.operation.findMany({
     where: {
-      ...(filters?.departmentId ? { departmentId: filters.departmentId } : {}),
+      ...(filters?.departmentIds?.length
+        ? { departmentId: { in: filters.departmentIds } }
+        : filters?.departmentId
+          ? { departmentId: filters.departmentId }
+          : {}),
       ...(filters?.commanderId ? { commanderId: filters.commanderId } : {}),
       ...(filters?.status ? { status: filters.status } : {}),
       ...(filters?.type ? { type: filters.type } : {}),
@@ -286,6 +291,7 @@ export async function getIncident(incidentId: string) {
 
 export async function listIncidents(filters?: {
   departmentId?: string
+  departmentIds?: string[]
   status?: string
   severity?: string
   type?: string
@@ -294,7 +300,11 @@ export async function listIncidents(filters?: {
 }) {
   const incidents = await prisma.incident.findMany({
     where: {
-      ...(filters?.departmentId ? { departmentId: filters.departmentId } : {}),
+      ...(filters?.departmentIds?.length
+        ? { departmentId: { in: filters.departmentIds } }
+        : filters?.departmentId
+          ? { departmentId: filters.departmentId }
+          : {}),
       ...(filters?.status ? { status: filters.status } : {}),
       ...(filters?.severity ? { severity: filters.severity } : {}),
       ...(filters?.type ? { type: filters.type } : {}),

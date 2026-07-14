@@ -4,6 +4,9 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
+import { getAuthenticatedUser } from '@/lib/auth'
+import { getApiScope } from '@/lib/hierarchy/data-scope'
 
 type HierarchyEntityRow = {
   id: string
@@ -11,40 +14,43 @@ type HierarchyEntityRow = {
   type: string
 }
 
-function escapeSqlLiteral(value: string): string {
-  return value.replace(/'/g, "''")
-}
-
-function sqlValue(value: string | null | undefined): string {
-  if (value === null || value === undefined || value === '') {
-    return 'NULL'
-  }
-
-  return `'${escapeSqlLiteral(value)}'`
-}
-
-async function countHierarchyChildren(parentId: string, type: string): Promise<number> {
-  const rows = await prisma.$queryRawUnsafe<{ count: number }[]>(`
+async function countHierarchyChildren(parentId: string, type: string, allowedIds: string[] | null): Promise<number> {
+  const rows = await prisma.$queryRaw<{ count: number }[]>(Prisma.sql`
     SELECT COUNT(*)::int AS count
     FROM "HierarchyEntity"
-    WHERE "parentId" = ${sqlValue(parentId)}
-      AND "type" = ${sqlValue(type)}
+    WHERE "parentId" = ${parentId}
+      AND "type" = ${type}
+      ${
+        allowedIds && allowedIds.length > 0
+          ? Prisma.sql`AND "id" IN (${Prisma.join(allowedIds)})`
+          : Prisma.empty
+      }
   `)
 
   return Number(rows[0]?.count ?? 0)
 }
 
-async function countGrandchildren(parentId: string, childType: string, grandchildType: string): Promise<number> {
-  const rows = await prisma.$queryRawUnsafe<{ count: number }[]>(`
+async function countGrandchildren(parentId: string, childType: string, grandchildType: string, allowedIds: string[] | null): Promise<number> {
+  const rows = await prisma.$queryRaw<{ count: number }[]>(Prisma.sql`
     SELECT COUNT(*)::int AS count
     FROM "HierarchyEntity"
     WHERE "parentId" IN (
       SELECT "id"
       FROM "HierarchyEntity"
-      WHERE "parentId" = ${sqlValue(parentId)}
-        AND "type" = ${sqlValue(childType)}
+      WHERE "parentId" = ${parentId}
+        AND "type" = ${childType}
+        ${
+          allowedIds && allowedIds.length > 0
+            ? Prisma.sql`AND "id" IN (${Prisma.join(allowedIds)})`
+            : Prisma.empty
+        }
     )
-      AND "type" = ${sqlValue(grandchildType)}
+      AND "type" = ${grandchildType}
+      ${
+        allowedIds && allowedIds.length > 0
+          ? Prisma.sql`AND "id" IN (${Prisma.join(allowedIds)})`
+          : Prisma.empty
+      }
   `)
 
   return Number(rows[0]?.count ?? 0)
@@ -53,6 +59,11 @@ async function countGrandchildren(parentId: string, childType: string, grandchil
 // GET /api/hierarchy/statistics?parentId=xxx
 export async function GET(request: NextRequest) {
   try {
+    const authUser = await getAuthenticatedUser(request)
+    if (!authUser) {
+      return NextResponse.json({ error: 'غير مصرح بالوصول' }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
     const parentId = searchParams.get('parentId')
 
@@ -63,13 +74,20 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const parentRows = await prisma.$queryRawUnsafe<HierarchyEntityRow[]>(`
+    const scope = await getApiScope(authUser.id, authUser.role, authUser.hierarchyEntityId)
+    const allowedIds = scope.allowedEntityIds
+
+    if (allowedIds.length > 0 && !allowedIds.includes(parentId)) {
+      return NextResponse.json({ error: 'غير مصرح بالوصول لهذا الكيان' }, { status: 403 })
+    }
+
+    const parentRows = await prisma.$queryRaw<HierarchyEntityRow[]>(Prisma.sql`
       SELECT
         "id",
         "name",
         "type"
       FROM "HierarchyEntity"
-      WHERE "id" = ${sqlValue(parentId)}
+      WHERE "id" = ${parentId}
       LIMIT 1
     `)
 
@@ -82,12 +100,12 @@ export async function GET(request: NextRequest) {
       id: parent.id,
       name: parent.name,
       type: parent.type,
-      departmentsCount: await countHierarchyChildren(parentId, 'DEPARTMENT'),
-      sectionsCount: await countHierarchyChildren(parentId, 'SECTION'),
-      unitsCount: await countHierarchyChildren(parentId, 'UNIT'),
+      departmentsCount: await countHierarchyChildren(parentId, 'DEPARTMENT', allowedIds),
+      sectionsCount: await countHierarchyChildren(parentId, 'SECTION', allowedIds),
+      unitsCount: await countHierarchyChildren(parentId, 'UNIT', allowedIds),
       deepDepartmentsCount:
         parent.type === 'GOVERNORATE'
-          ? await countGrandchildren(parentId, 'DEPARTMENT', 'SECTION')
+          ? await countGrandchildren(parentId, 'DEPARTMENT', 'SECTION', allowedIds)
           : 0,
     }
 

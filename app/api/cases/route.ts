@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { CreateCaseSchema } from '@/lib/schemas'
 import { apiGuard } from '@/lib/hierarchy/guard'
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
 type LegacyCaseRow = {
@@ -23,50 +24,42 @@ type LegacyCaseRow = {
   hierarchyEntityId: string | null
 }
 
-function escapeSqlLiteral(value: string): string {
-  return value.replace(/'/g, "''")
-}
-
-function sqlValue(value: string | null | undefined): string {
-  if (value === null || value === undefined || value === '') {
-    return 'NULL'
-  }
-
-  return `'${escapeSqlLiteral(value)}'`
-}
-
 function buildCaseWhereClause(filters: {
   status?: string | null
   type?: string | null
   departmentId?: string | null
   search?: string | null
-}) {
-  const conditions: string[] = ['1 = 1']
+}, allowedEntityIds: string[] | null, userId: string) {
+  const conditions: Prisma.Sql[] = [Prisma.sql`1 = 1`]
 
   if (filters.status) {
-    conditions.push(`"status" = ${sqlValue(filters.status)}`)
+    conditions.push(Prisma.sql`"status" = ${filters.status}`)
   }
 
   if (filters.type) {
-    conditions.push(`"caseType" = ${sqlValue(filters.type)}`)
+    conditions.push(Prisma.sql`"caseType" = ${filters.type}`)
   }
 
   if (filters.departmentId) {
-    conditions.push(`"hierarchyEntityId" = ${sqlValue(filters.departmentId)}`)
+    conditions.push(Prisma.sql`"hierarchyEntityId" = ${filters.departmentId}`)
   }
 
   if (filters.search) {
-    const search = `%${escapeSqlLiteral(filters.search)}%`
+    const search = `%${filters.search}%`
+    conditions.push(Prisma.sql`("caseNumber" ILIKE ${search} OR "title" ILIKE ${search} OR COALESCE("description", '') ILIKE ${search})`)
+  }
+
+  if (allowedEntityIds && allowedEntityIds.length > 0) {
     conditions.push(
-      `("caseNumber" ILIKE '${search}' OR "title" ILIKE '${search}' OR COALESCE("description", '') ILIKE '${search}')`
+      Prisma.sql`("hierarchyEntityId" IN (${Prisma.join(allowedEntityIds)}) OR "assignedOfficerId" = ${userId})`
     )
   }
 
-  return `WHERE ${conditions.join(' AND ')}`
+  return Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`
 }
 
-async function loadCases(whereClause: string, limit: number, skip: number) {
-  return prisma.$queryRawUnsafe<LegacyCaseRow[]>(`
+async function loadCases(whereClause: Prisma.Sql, limit: number, skip: number) {
+  return prisma.$queryRaw<LegacyCaseRow[]>(Prisma.sql`
     SELECT
       "id",
       "caseNumber",
@@ -89,8 +82,8 @@ async function loadCases(whereClause: string, limit: number, skip: number) {
   `)
 }
 
-async function countCases(whereClause: string) {
-  const rows = await prisma.$queryRawUnsafe<{ count: number }[]>(`
+async function countCases(whereClause: Prisma.Sql) {
+  const rows = await prisma.$queryRaw<{ count: number }[]>(Prisma.sql`
     SELECT COUNT(*)::int AS count
     FROM "Case"
     ${whereClause}
@@ -102,7 +95,7 @@ async function countCases(whereClause: string) {
 // GET /api/cases - List all cases with pagination and filtering
 export async function GET(request: NextRequest) {
   try {
-    const guard = await apiGuard(request)
+    const guard = await apiGuard(request, { permission: 'READ_CASE' })
     if ('error' in guard) return guard.error
 
     const { searchParams } = new URL(request.url)
@@ -114,7 +107,11 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search')
 
     const skip = Math.max(page - 1, 0) * limit
-    const whereClause = buildCaseWhereClause({ status, type, departmentId, search })
+    const whereClause = buildCaseWhereClause(
+      { status, type, departmentId, search },
+      guard.dataScope.allowedEntityIds,
+      guard.user.id
+    )
 
     const [cases, total] = await Promise.all([
       loadCases(whereClause, limit, skip),
@@ -140,14 +137,14 @@ export async function GET(request: NextRequest) {
 // POST /api/cases - Create new case
 export async function POST(request: NextRequest) {
   try {
-    const guard = await apiGuard(request)
+    const guard = await apiGuard(request, { permission: 'CREATE_CASE' })
     if ('error' in guard) return guard.error
 
     const { user } = guard
     const body = await request.json()
     const validatedData = CreateCaseSchema.parse(body)
 
-    const caseCount = await prisma.$queryRawUnsafe<{ count: number }[]>(`
+    const caseCount = await prisma.$queryRaw<{ count: number }[]>(Prisma.sql`
       SELECT COUNT(*)::int AS count
       FROM "Case"
     `)
@@ -155,9 +152,9 @@ export async function POST(request: NextRequest) {
     const caseId = randomUUID()
     const assignmentId = randomUUID()
     const priority = (validatedData.severity ?? 'MEDIUM').toLowerCase()
-    const hierarchyEntityId = validatedData.departmentId ?? null
+    const hierarchyEntityId = validatedData.departmentId ?? guard.user.hierarchyEntityId ?? null
 
-    await prisma.$executeRawUnsafe(`
+    await prisma.$executeRaw(Prisma.sql`
       INSERT INTO "Case" (
         "id",
         "caseNumber",
@@ -173,23 +170,23 @@ export async function POST(request: NextRequest) {
         "createdAt",
         "updatedAt"
       ) VALUES (
-        '${caseId}',
-        '${escapeSqlLiteral(caseNumber)}',
-        '${escapeSqlLiteral(validatedData.title)}',
-        ${sqlValue(validatedData.description ?? null)},
-        '${escapeSqlLiteral(validatedData.type)}',
+        ${caseId},
+        ${caseNumber},
+        ${validatedData.title},
+        ${validatedData.description ?? null},
+        ${validatedData.type},
         'open',
-        '${escapeSqlLiteral(priority)}',
-        ${sqlValue(validatedData.province ?? null)},
-        ${sqlValue(validatedData.district ?? null)},
-        '${escapeSqlLiteral(user.id)}',
-        ${sqlValue(hierarchyEntityId)},
+        ${priority},
+        ${validatedData.province ?? null},
+        ${validatedData.district ?? null},
+        ${user.id},
+        ${hierarchyEntityId},
         NOW(),
         NOW()
       )
     `)
 
-    await prisma.$executeRawUnsafe(`
+    await prisma.$executeRaw(Prisma.sql`
       INSERT INTO "CaseAssignment" (
         "id",
         "caseId",
@@ -197,9 +194,9 @@ export async function POST(request: NextRequest) {
         "role",
         "assignedAt"
       ) VALUES (
-        '${assignmentId}',
-        '${caseId}',
-        '${escapeSqlLiteral(user.id)}',
+        ${assignmentId},
+        ${caseId},
+        ${user.id},
         'creator',
         NOW()
       )
@@ -219,7 +216,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const [created] = await loadCases(`WHERE "id" = '${escapeSqlLiteral(caseId)}'`, 1, 0)
+    const [created] = await loadCases(Prisma.sql`WHERE "id" = ${caseId}`, 1, 0)
 
     return NextResponse.json(
       {

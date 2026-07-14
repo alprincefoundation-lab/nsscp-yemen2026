@@ -22,11 +22,13 @@ import { requireAuth } from '@/lib/auth/index';
 import type { AuthenticatedUser } from '@/lib/auth/auth.types';
 import { createRBACContext, resolvePermission, type Action, type Resource } from '@/lib/auth/rbac';
 import { createAuditLog, extractRequestMeta } from '@/lib/core/audit-engine';
+import { getHierarchyScope, type DataScope } from './data-scope';
 
 export interface GuardResult {
   user: AuthenticatedUser;
   engine: HierarchyEngine;
   scope: ScopeFilter;
+  dataScope: DataScope;
   error?: never;
 }
 
@@ -79,15 +81,16 @@ export async function apiGuard(
       };
     }
 
-  // Create hierarchy engine with unified input
-  const engine = new HierarchyEngine({
-    id: user.id,
-    role: user.role,
-    hierarchyNodeId: user.hierarchyEntityId,
-  });
+    // Create hierarchy engine with unified input
+    const engine = new HierarchyEngine({
+      id: user.id,
+      role: user.role,
+      hierarchyNodeId: user.hierarchyEntityId,
+    });
 
     // Get scope filter
     const scope = await engine.getScope();
+    const dataScope = await getHierarchyScope(user);
 
     // Permission check (if specified)
     if (options?.permission) {
@@ -104,7 +107,7 @@ export async function apiGuard(
       }
     }
 
-    return { user, engine, scope };
+    return { user, engine, scope, dataScope };
   } catch (err: any) {
     return {
       error: NextResponse.json(

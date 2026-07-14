@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUser } from '@/lib/auth'
-import { HierarchyEngine } from '@/lib/hierarchy'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
+import { getApiScope } from '@/lib/hierarchy/data-scope'
 
 type HierarchyEntityRow = {
   id: string
@@ -54,18 +55,6 @@ function findSubtree(nodes: HierarchyTreeNode[], rootId: string): HierarchyTreeN
   return null
 }
 
-function escapeSqlLiteral(value: string): string {
-  return value.replace(/'/g, "''")
-}
-
-function sqlValue(value: string | null | undefined): string {
-  if (value === null || value === undefined || value === '') {
-    return 'NULL'
-  }
-
-  return `'${escapeSqlLiteral(value)}'`
-}
-
 export async function GET(request: NextRequest) {
   try {
     const authUser = await getAuthenticatedUser(request)
@@ -75,20 +64,14 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const rootId = searchParams.get('rootId')
-    const engine = new HierarchyEngine({
-      id: authUser.id,
-      role: authUser.role,
-      hierarchyNodeId: authUser.hierarchyEntityId,
-    })
+    const scope = await getApiScope(authUser.id, authUser.role, authUser.hierarchyEntityId)
+    const allowedIds = scope.allowedEntityIds
 
-    if (rootId) {
-      const canAccess = await engine.canAccessHierarchy(rootId)
-      if (!canAccess) {
-        return NextResponse.json({ error: 'غير مصرح بالوصول لهذا الكيان' }, { status: 403 })
-      }
+    if (rootId && allowedIds.length > 0 && !allowedIds.includes(rootId)) {
+      return NextResponse.json({ error: 'غير مصرح بالوصول لهذا الكيان' }, { status: 403 })
     }
 
-    const rows = await prisma.$queryRawUnsafe<HierarchyEntityRow[]>(`
+    const rows = await prisma.$queryRaw<HierarchyEntityRow[]>(Prisma.sql`
       SELECT
         "id",
         "name",
@@ -96,6 +79,11 @@ export async function GET(request: NextRequest) {
         "type",
         "parentId"
       FROM "HierarchyEntity"
+      ${
+        allowedIds.length > 0
+          ? Prisma.sql`WHERE "id" IN (${Prisma.join(allowedIds)})`
+          : Prisma.empty
+      }
       ORDER BY "name" ASC
     `)
 

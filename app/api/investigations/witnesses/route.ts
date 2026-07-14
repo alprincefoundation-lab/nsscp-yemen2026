@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth'
+import { getHierarchyScope } from '@/lib/hierarchy/data-scope'
 import {
   addWitness,
   listWitnesses,
@@ -21,13 +23,8 @@ const AddWitnessSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id')
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
+    const auth = await requireAuth(request)
+    const scope = await getHierarchyScope(auth)
 
     const body = await request.json()
     const validatedData = AddWitnessSchema.parse(body)
@@ -61,6 +58,8 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request)
+    const scope = await getHierarchyScope(auth)
     const searchParams = request.nextUrl.searchParams
     const investigationId = searchParams.get('investigationId')
 

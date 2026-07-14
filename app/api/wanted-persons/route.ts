@@ -2,15 +2,16 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { wantedPersonsService } from '@/lib/services/wanted-persons.service'
-import { getAuthenticatedUser } from '@/lib/auth'
+import { requireAuth } from '@/lib/auth'
+import { getHierarchyScope } from '@/lib/hierarchy/data-scope'
 
 export async function POST(request: NextRequest) {
   try {
-    const decoded = await getAuthenticatedUser(request)
-    if (!decoded) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await requireAuth(request)
+    const scope = await getHierarchyScope(auth)
 
     const body = await request.json()
-    const person = await wantedPersonsService.createWantedPerson(body, decoded.id)
+    const person = await wantedPersonsService.createWantedPerson(body, auth.id)
 
     return NextResponse.json(person, { status: 201 })
   } catch (error: any) {
@@ -20,8 +21,8 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const decoded = await getAuthenticatedUser(request)
-    if (!decoded) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await requireAuth(request)
+    const scope = await getHierarchyScope(auth)
 
     const searchParams = request.nextUrl.searchParams
     const query = searchParams.get('query')
@@ -29,6 +30,15 @@ export async function GET(request: NextRequest) {
     const severity = searchParams.get('severity')
     const skip = parseInt(searchParams.get('skip') || '0')
     const take = parseInt(searchParams.get('take') || '50')
+    const departmentId = searchParams.get('departmentId')
+
+    // Validate client-supplied departmentId against scope
+    if (departmentId && scope.allowedEntityIds.length > 0 && !scope.allowedEntityIds.includes(departmentId)) {
+      return NextResponse.json(
+        { error: 'غير مصرح بالوصول لهذا النطاق' },
+        { status: 403 }
+      )
+    }
 
     if (query) {
       const results = await wantedPersonsService.searchWantedPersons(query)
@@ -38,6 +48,7 @@ export async function GET(request: NextRequest) {
     const result = await wantedPersonsService.listWantedPersons({
       status: status || undefined,
       dangerLevel: severity || undefined,
+      departmentIds: scope.allowedEntityIds.length > 0 ? scope.allowedEntityIds : undefined,
       skip,
       take,
     })

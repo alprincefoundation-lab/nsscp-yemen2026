@@ -189,7 +189,9 @@ export async function listPrisoners(filters?: {
   status?: string
   crimeType?: string
   departmentId?: string
+  departmentIds?: string[]
   currentCellId?: string
+  currentCellIds?: string[]
   skip?: number
   take?: number
 }) {
@@ -197,8 +199,16 @@ export async function listPrisoners(filters?: {
     where: {
       ...(filters?.status ? { status: filters.status } : {}),
       ...(filters?.crimeType ? { crimeType: filters.crimeType } : {}),
-      ...(filters?.departmentId ? { departmentId: filters.departmentId } : {}),
-      ...(filters?.currentCellId ? { currentCellId: filters.currentCellId } : {}),
+      ...(filters?.departmentIds?.length
+        ? { departmentId: { in: filters.departmentIds } }
+        : filters?.departmentId
+          ? { departmentId: filters.departmentId }
+          : {}),
+      ...(filters?.currentCellIds?.length
+        ? { currentCellId: { in: filters.currentCellIds } }
+        : filters?.currentCellId
+          ? { currentCellId: filters.currentCellId }
+          : {}),
     },
     orderBy: { bookingDate: 'desc' },
     skip: filters?.skip || 0,
@@ -276,12 +286,17 @@ export async function listCells(filters?: {
   block?: string
   status?: string
   departmentId?: string
+  departmentIds?: string[]
 }) {
   const cells = await prisma.cell.findMany({
     where: {
       ...(filters?.block ? { block: filters.block } : {}),
       ...(filters?.status ? { status: filters.status } : {}),
-      ...(filters?.departmentId ? { departmentId: filters.departmentId } : {}),
+      ...(filters?.departmentIds?.length
+        ? { departmentId: { in: filters.departmentIds } }
+        : filters?.departmentId
+          ? { departmentId: filters.departmentId }
+          : {}),
     },
   })
 

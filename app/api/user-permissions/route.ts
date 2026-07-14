@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth';
-import { getRolePermissions, Permission } from '@/lib/permissions';
+import { getRolePermissions } from '@/lib/permissions';
 
 export async function GET() {
-  try {
-    const user = await getAuthenticatedUser();
-    if (!user) {
-      return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
-    }
+    try {
+        const user = await getAuthenticatedUser();
+        if (!user) {
+            return NextResponse.json({ error: 'غير مصرح' }, { status: 401 });
+        }
 
     const permissions = getRolePermissions(user.role as any);
 
